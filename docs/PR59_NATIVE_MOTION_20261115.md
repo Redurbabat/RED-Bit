@@ -42,3 +42,13 @@ Kein Code, Shader oder Sound aus React Bits übernommen; eigene native Änderung
 ## Aktueller iPhone-Nachweis
 
 Wiederholung nach Entsperren: vier von vier ausgewählten XCUITests BESTANDEN, Exitcode 0. Album-Rückseite/Coverfächer 14,269 s, Sternbild-Finale 15,010 s, Galaxie/Plattenwechsel 24,606 s und Videoreferenz/Lyrics-Umschaltung 8,172 s. Resultbundle `build/ios/PR59-motion-unlocked-20261115.xcresult`, Log `build/ios/pr59-motion-unlocked.log`, exportierte Bilder `build/ios/pr59-motion-screenshots/`. Physisches iPhone 13 Pro Max, iOS 26.6.1. Die Prüfungen verwenden markierte lokale Prüfdaten und bestätigen keine neue echte Audio-/Kontenabnahme.
+
+## Fertige reguläre Release-IPA
+
+Xcode-Release-Archiv aus sauberem App-Commit `0cf95151dff16f33f9078f7446d331f391dcb058`: **ARCHIVE SUCCEEDED**, 151 Sekunden. `scripts/package-ios-ipa.sh 1.0.4 --output-dir <lokaler Ausgabeordner>` im isolierten Checkout erzeugte `RedBit-1.0.4-build13-ios-unsigned.ipa` (rund 30 MB). Die lokale kostenlose Testkonfiguration ist nicht enthalten.
+
+`scripts/verify-regular-ios-ipa.py` mit Python 3.13 bestätigt App `com.babat.bbtbit`, Widget `com.babat.bbtbit.widget`, Version/Build, `RedBitRevision=0cf95151dff1`, Hintergrundaudio, beide Frameworks und arm64-iPhoneOS-Binaries. Kotlin-/Rust-Frameworks liegen in gültigen Universal-Containern mit arm64-Geräteslices; der zuvor verwendete reine Thin-Mach-O-Prüfer war dafür ungeeignet. Acht neue positive/negative Gegenproben bestanden. Kein eingebettetes Provisioning-Profil.
+
+SHA-256: `b13ae5a7c8e49ea8d1948d4ecaf2eaf986ec55af0726cfff8aabdf26488b408a`.
+
+Lokale Dateien unter `build/release/pr59-0cf9515/`: IPA, `build.json`, `SHA256.txt`, `INSTALL.md`. Der anschließende Prüfskript-/Dokumentationscommit ändert keinen App-Code; die IPA bleibt dem oben genannten App-Commit zugeordnet. Externe Signierung und Installation der regulären IPA sowie deren echte Audio-/Cloud-Abnahme bleiben offen. Kein Release veröffentlicht und kein Merge nach main.
