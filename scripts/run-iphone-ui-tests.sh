@@ -39,7 +39,7 @@ xcodebuild \
   -parallel-testing-enabled NO \
   -resultBundlePath "$bundle" \
   test \
-  "${team_flags[@]}" 2>&1 | tee "$results_dir/xcodebuild.log"
+  ${team_flags[@]+"${team_flags[@]}"} 2>&1 | tee "$results_dir/xcodebuild.log"
 exit_code="${PIPESTATUS[0]}"
 set -e
 

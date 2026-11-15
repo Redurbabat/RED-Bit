@@ -91,3 +91,18 @@ Der [Apple-Silicon-Lauf für `c294252`](https://github.com/Redurbabat/BBT-Bit/ac
 
 ## 2026-11-07 · Cloud-Bau und SideStore-Gerätetest vorbereitet
 Der neue Workflow verwendet die bestehenden nativen Bauskripte und eine ausschließlich generierte SideStore-Konfiguration. Bundle-ID, App-Quellen und lokale Datenformate bleiben bestehen; die kostenlose Testvariante enthält keine Widget-Erweiterung oder iCloud-/App-Group-Freigaben. Acht ausgeführte Fixture-Tests und Actionlint bestehen. Der aktuelle GitHub-Lauf meldet eine Actions-Budgetsperre. **Echte IPA-Erzeugung, Signierung, Installation, Update und Audio sind NICHT GETESTET.** Redion wurde ausschließlich gelesen und enthält bereits einen Capacitor-iOS-Wrapper. [Anleitung, offene Voraussetzungen und Prüfstand](docs/IPHONE_TESTSYSTEM.md)
+
+
+## 14. November 2026 · Gezielte iPhone-Motionprüfung
+
+Galaxie und Plattenregal getrennt beim Vorwärts-/Rückwärtswechsel geprüft; Sternbild-Finale und Lyrics-Umschaltung bestanden. Alle 15 Designvorschauen im separaten Wiederholungslauf bestanden. Screenshot-Übersichten gesichtet. Sporadischer Vorschau-Navigationsfehler und vorheriger Such-Tastaturfehler bleiben offen; echte Audio-Übergänge und flüssige Zwischenanimationen nicht abgenommen. [Befehle, Gerät, Artefakte und Grenzen](docs/PR59_NATIVE_MOTION_20261115.md).
+
+
+## 15. November 2026 · Vogel-Logo und React-Bits-Ideen
+
+Neues Nutzerlogo mit randlos rotem Hintergrund als App-Icon und transparenter Silhouette eingebunden; historische Quellen und vorgefundene Icon-Composer-Einstellungen gesichert. Unsigned iOS-Xcode-Build bestanden, Quadrat-/Maskenvorschau und kleine Marker visuell gesichtet. Reale Icon-Abnahme offen. [Dateien und Herkunft](artwork/red-bit/README.md). Öffentlichen React-Bits-Katalog über fünf Kategorien gesichtet, engere Auswahl mit vorhandenen SwiftUI-Komponenten abgeglichen und priorisiert; keine Web-Abhängigkeit und keine Effekte implementiert. [Ideen, Abnahme und Lizenz](docs/REACT_BITS_IDEEN_20261115.md).
+
+
+## 15. November 2026 · PR #59: native Ideen und reguläre IPA
+
+Ausgewählte Motion-Ideen in vorhandene SwiftUI-Komponenten integriert, Mix-/Lautstärke-Überlagerung und schwache Sternbildkontraste korrigiert, deutsche Statuswerte ergänzt. Native Suche und Scroll-/Zoom-Animation erhalten. Reguläre App mit Widget erfolgreich kompiliert; Prüfungen und Signierungsgrenzen im [PR-59-Nachtrag](docs/PR59_NATIVE_MOTION_20261115.md).

@@ -18,90 +18,93 @@ struct ArcPlaybackDeck<More: View>: View {
     }
 
     var body: some View {
-        GeometryReader { proxy in
-            let geometry = ArcPlaybackGeometry(size: proxy.size)
-            ZStack {
-                Canvas { context, _ in draw(&context, geometry: geometry) }
-                    .accessibilityHidden(true)
-                ArcSeekBand()
-                    .fill(.clear)
-                    .contentShape(ArcSeekBand())
-                    .gesture(
-                        DragGesture(minimumDistance: 0)
-                            .updating($dragProgress) { value, state, _ in
-                                guard !party.state.controlsLocked, controller.duration.isFinite,
-                                      controller.duration > 0 else { return }
-                                state = geometry.progress(at: value.location)
+        VStack(spacing: 12) {
+            GeometryReader { proxy in
+                let geometry = ArcPlaybackGeometry(size: proxy.size)
+                ZStack {
+                    Canvas { context, _ in draw(&context, geometry: geometry) }
+                        .accessibilityHidden(true)
+                    ArcSeekBand()
+                        .fill(.clear)
+                        .contentShape(ArcSeekBand())
+                        .gesture(
+                            DragGesture(minimumDistance: 0)
+                                .updating($dragProgress) { value, state, _ in
+                                    guard !party.state.controlsLocked, controller.duration.isFinite,
+                                          controller.duration > 0 else { return }
+                                    state = geometry.progress(at: value.location)
+                                }
+                                .onEnded { value in seek(geometry.progress(at: value.location)) }
+                        )
+                        .accessibilityElement()
+                        .accessibilityLabel("Playback position")
+                        .accessibilityValue(NowPlayingView.timestamp(controller.position))
+                        .accessibilityAdjustableAction { direction in
+                            let delta: Double
+                            switch direction {
+                            case .increment: delta = 5
+                            case .decrement: delta = -5
+                            @unknown default: return
                             }
-                            .onEnded { value in seek(geometry.progress(at: value.location)) }
-                    )
-                    .accessibilityElement()
-                    .accessibilityLabel("Playback position")
-                    .accessibilityValue(NowPlayingView.timestamp(controller.position))
-                    .accessibilityAdjustableAction { direction in
-                        let delta: Double
-                        switch direction {
-                        case .increment: delta = 5
-                        case .decrement: delta = -5
-                        @unknown default: return
+                            guard controller.duration > 0 else { return }
+                            seek((controller.position + delta) / controller.duration)
                         }
-                        guard controller.duration > 0 else { return }
-                        seek((controller.position + delta) / controller.duration)
+                        .accessibilityIdentifier("bbt.player.arc.seek")
+
+                    control("shuffle", label: "Shuffle", selected: controller.shuffleEnabled, changesPlayback: true) {
+                        controller.toggleShuffle()
+                    }.position(controlPoint(0, geometry))
+                    control(controller.isLiked ? "heart.fill" : "heart", label: "Like",
+                            selected: controller.isLiked,
+                            enabled: auth.signedIn && controller.current?.videoId != nil) {
+                        controller.toggleLike()
                     }
-                    .accessibilityIdentifier("bbt.player.arc.seek")
+                    .modifier(FavoriteStarConfirmation(videoID: controller.current?.videoId))
+                    .position(controlPoint(1, geometry))
+                    control("quote.bubble", label: "Lyrics", action: onLyrics)
+                        .position(controlPoint(2, geometry))
+                    control(controller.isPlaying ? "pause.fill" : "play.fill", label: controller.isPlaying ? "Pause" : "Play",
+                            enabled: controller.current != nil || controller.isBuffering, changesPlayback: true) {
+                        controller.togglePlayPause()
+                    }
+                    .accessibilityIdentifier("bbt.nowPlaying.play")
+                    .position(controlPoint(3, geometry))
+                    control("list.bullet", label: "Queue", action: onQueue)
+                        .position(controlPoint(4, geometry))
+                    control(controller.repeatMode == .one ? "repeat.1" : "repeat", label: "Repeat",
+                            selected: controller.repeatMode != .off, changesPlayback: true) {
+                        controller.cycleRepeat()
+                    }.position(controlPoint(5, geometry))
+                    more.position(controlPoint(6, geometry))
 
-                control("shuffle", label: "Shuffle", selected: controller.shuffleEnabled, changesPlayback: true) {
-                    controller.toggleShuffle()
-                }.position(controlPoint(0, geometry))
-                control(controller.isLiked ? "heart.fill" : "heart", label: "Like",
-                        selected: controller.isLiked,
-                        enabled: auth.signedIn && controller.current?.videoId != nil) {
-                    controller.toggleLike()
-                }
-                .modifier(FavoriteStarConfirmation(videoID: controller.current?.videoId))
-                .position(controlPoint(1, geometry))
-                control("quote.bubble", label: "Lyrics", action: onLyrics)
-                    .position(controlPoint(2, geometry))
-                control(controller.isPlaying ? "pause.fill" : "play.fill", label: controller.isPlaying ? "Pause" : "Play",
-                        enabled: controller.current != nil || controller.isBuffering, changesPlayback: true) {
-                    controller.togglePlayPause()
-                }
-                .accessibilityIdentifier("bbt.nowPlaying.play")
-                .position(controlPoint(3, geometry))
-                control("list.bullet", label: "Queue", action: onQueue)
-                    .position(controlPoint(4, geometry))
-                control(controller.repeatMode == .one ? "repeat.1" : "repeat", label: "Repeat",
-                        selected: controller.repeatMode != .off, changesPlayback: true) {
-                    controller.cycleRepeat()
-                }.position(controlPoint(5, geometry))
-                more.position(controlPoint(6, geometry))
+                    control("backward.end.fill", label: "Previous track", enabled: controller.canPlayPrevious, changesPlayback: true) {
+                        controller.previous()
+                    }
+                    .background(.thinMaterial, in: Circle())
+                    .position(x: proxy.size.width * 0.27, y: geometry.center.y - 13)
+                    Text(NowPlayingView.timestamp(dragProgress == nil ? controller.position : progress * controller.duration))
+                        .font(.system(.body, design: .serif).monospacedDigit())
+                        .foregroundStyle(.white)
+                        .position(x: geometry.center.x, y: geometry.center.y - 13)
+                        .accessibilityHidden(true)
+                    control("forward.end.fill", label: "Next track", enabled: controller.canPlayNext, changesPlayback: true) {
+                        controller.next()
+                    }
+                    .background(.thinMaterial, in: Circle())
+                    .position(x: proxy.size.width * 0.73, y: geometry.center.y - 13)
 
-                control("backward.end.fill", label: "Previous track", enabled: controller.canPlayPrevious, changesPlayback: true) {
-                    controller.previous()
                 }
-                .background(.thinMaterial, in: Circle())
-                .position(x: proxy.size.width * 0.27, y: geometry.center.y - 13)
-                Text(NowPlayingView.timestamp(dragProgress == nil ? controller.position : progress * controller.duration))
-                    .font(.system(.body, design: .serif).monospacedDigit())
-                    .foregroundStyle(.white)
-                    .position(x: geometry.center.x, y: geometry.center.y - 13)
-                    .accessibilityHidden(true)
-                control("forward.end.fill", label: "Next track", enabled: controller.canPlayNext, changesPlayback: true) {
-                    controller.next()
-                }
-                .background(.thinMaterial, in: Circle())
-                .position(x: proxy.size.width * 0.73, y: geometry.center.y - 13)
+            }
+            .aspectRatio(1.48, contentMode: .fit)
                 if controller.automixEnabled, controller.smartTransitionWindow != nil || controller.smartMixInProgress {
                     let window = controller.smartTransitionWindow ?? TransitionWindow(start: 0, end: 0)
                     AutomixWeave(start: window.start, end: window.end,
                         position: controller.position, tier: controller.analysisTier,
                         reason: controller.transitionReason, isMixing: controller.smartMixInProgress)
                         .frame(maxWidth: 170)
-                        .position(x: geometry.center.x, y: geometry.center.y + 16)
+                        .padding(.bottom, 4)
                 }
-            }
         }
-        .aspectRatio(1.48, contentMode: .fit)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("bbt.player.arc")
     }
@@ -163,6 +166,17 @@ struct ArcPlaybackDeck<More: View>: View {
             tick.addLine(to: geometry.point(progress: value, radius: geometry.radius - CGFloat(length)))
             context.stroke(tick, with: .color(.white.opacity(max(value <= progress ? 0.65 : 0.22, focus * 0.9))),
                            lineWidth: CGFloat(1 + focus))
+        }
+        // Kurzer Kometenschweif nur während einer echten Seek-Geste.
+        if dragProgress != nil, !reduceMotion {
+            for segment in 1...12 {
+                let tail = max(0, progress - Double(segment) * 0.005)
+                var trail = Path()
+                trail.move(to: geometry.point(progress: tail, radius: geometry.radius - 4))
+                trail.addLine(to: geometry.point(progress: min(progress, tail + 0.005), radius: geometry.radius - 4))
+                context.stroke(trail, with: .color(Theme.accent.opacity(0.7 * (1 - Double(segment) / 13))),
+                               style: StrokeStyle(lineWidth: 3, lineCap: .round))
+            }
         }
         var needle = Path()
         needle.move(to: geometry.point(progress: progress, radius: geometry.radius - 25))

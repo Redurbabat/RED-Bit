@@ -1,6 +1,24 @@
 # RED Bit – Logo
 
-## Aktuell: Wellen-Logo des Nutzers (11. November 2026)
+## Aktuell: Vogel-Logo des Nutzers (15. November 2026)
+
+Nutzerquelle: [bird-source.jpg](bird-source.jpg). Gewünschte Korrektur: weißen äußeren Hintergrund entfernen, weiße Federdetails erhalten. Mit dem eingebauten Bildwerkzeug wurde der rote Hintergrund bis in die quadratischen Ecken ergänzt. Das ist eine KI-bearbeitete Fassung, kein pixelidentischer Retusche-Nachweis. Die vereinfachte transparente Silhouette verwendet dieselbe Vogelidee als Template-Marker.
+
+| Datei | Verwendung |
+| --- | --- |
+| [bird-edge-to-edge.png](bird-edge-to-edge.png) | Bearbeitete randlose Quelle |
+| [bird-icon-1024.png](bird-icon-1024.png) | 1024 × 1024 RGB ohne Alpha; Legacy-AppIcon und Icon-Composer-Ebene `bird.png` |
+| [bird-mark.png](bird-mark.png) | Transparenter In-App-Marker im bestehenden `bch-logo`-Asset |
+| [bird-brand-preview.png](bird-brand-preview.png) | Quadrat, Maskenvorschau sowie 28/44/80-pt-Silhouette |
+| [wave-icon-composer-before-bird.json](wave-icon-composer-before-bird.json) | Sicherung der bereits lokal geänderten Icon-Composer-Einstellungen vor dieser Umstellung |
+
+Die bisherigen Wellen- und Signaldateien bleiben erhalten. Im bestehenden Icon-Composer-Paket wurden Bildname und Bildposition angepasst; die übrigen bereits lokal geänderten Materialeinstellungen bleiben erhalten. Gleiche Bundle-IDs und Asset-Namen; keine Nutzerdatenmigration nötig.
+
+Prüfung: `sips` bestätigt 1024 × 1024 und kein Alpha. Lokale AppKit-Prüfung: kein weißer Rahmen in der visuellen Quadrat-/Maskenvorschau; 9 von 4096 Randabtastungen sind hell (Feather-/Felsdetails berühren Bildränder). Vorschau mit kleinen Markern visuell gesichtet. `xcodebuild -project AppleApp/RedBitFreeTest.xcodeproj -scheme RedBit -configuration Debug -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build`: BESTANDEN, Log `build/ios/bird-logo-build.log`. Neue Homescreen-/Icon-Composer-Darstellung auf echtem Gerät, Getönt und macOS: NICHT GETESTET.
+
+Bearbeitung über eingebautes `image_gen`, kein CLI/API-Schlüssel. Prompts: (1) ausschließlich weiße äußere Ecken durch angrenzendes Rot ersetzen, Vogel, Gravur, weiße Federn und Komposition bewahren, opakes Quadrat ohne Rand; (2) daraus transparente weiße Silhouette für native Toolbar, Außenkontur bewahren, Details für 28 pt vereinfachen. Quelle vom Nutzer bereitgestellt; deren externe Herkunft/Rechte nicht unabhängig nachgewiesen.
+
+## Historisch: Wellen-Logo des Nutzers (11. November 2026)
 
 Vom Nutzer gelieferter Entwurf: cremefarbene, plastisch gedrehte Klangwelle zwischen zwei Punkten auf Bordeaux. [Vorschau](wave-brand-preview.png). App-Icon, Icon-Composer-Ebene (iOS/macOS 26) und In-App-Marker (Toolbar, Onboarding, Konto, Glass Bloom) verwenden dieselbe Quelle. Asset-Namen und Bundle-IDs bleiben unverändert; die Datenpfade heißen seit [E-024](../../ENTSCHEIDUNGEN.md) `RedBit`.
 

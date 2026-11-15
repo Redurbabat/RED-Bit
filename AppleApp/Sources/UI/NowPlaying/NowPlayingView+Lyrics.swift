@@ -117,8 +117,8 @@ extension NowPlayingView {
                     // Nothing has been looked for yet — a track whose lyrics are
                     // off, or a player with nothing loaded. Saying so is better
                     // than an empty gap where the words would be.
-                    Text(controller.current == nil ? "" : "Lyrics off")
-                        .foregroundStyle(.white.opacity(0.4))
+                    Text(controller.current == nil ? LocalizedStringKey("") : LocalizedStringKey("Lyrics off"))
+                        .foregroundStyle(.white.opacity(0.7))
                 }
             }
             .font(.subheadline.weight(.medium))

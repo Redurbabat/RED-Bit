@@ -188,7 +188,7 @@ private struct ConstellationScene: View, Animatable {
             let alpha = lineAlpha(words[index].line, current: currentLine, selected: selectedLine, live: live)
             let emphasis: Double = chosen ? 1 : 0.7
             let labelAlpha: Double = min(0.95, alpha * emphasis)
-            let fontSize: CGFloat = chosen ? 11 : Self.labelSize
+            let fontSize: CGFloat = chosen ? 13 : Self.labelSize
             let weight: Font.Weight = chosen ? .semibold : .medium
             let label = context.resolve(Text(words[index].text)
                 .font(.system(size: fontSize, weight: weight))
@@ -212,7 +212,7 @@ private struct ConstellationScene: View, Animatable {
         if let selected { return line == selected ? 0.95 : 0.4 }
         if line == current || !live { return 0.85 }
         let age = Double(max(0, current - line - 1))
-        return max(0.08, 0.3 - age * 0.08)
+        return max(0.18, 0.45 - age * 0.06)
     }
 
     /// Das gesungene Wort groß mit weichem Leuchten über einem Funkelstern; das
@@ -258,7 +258,7 @@ private struct ConstellationScene: View, Animatable {
         let word = words[index]
         let fromSize: CGFloat = word.text.count > 18 ? 24 : Self.bigSize
         let fontSize = fromSize + (Self.labelSize - fromSize) * CGFloat(progress)
-        let restAlpha = word.line == currentLine ? 0.6 : 0.25
+        let restAlpha = word.line == currentLine ? 0.75 : 0.4
         let text = context.resolve(Text(word.text).font(.system(size: fontSize, design: .serif))
             .foregroundStyle(.white.opacity(1 + (restAlpha - 1) * progress)))
         let measured = text.measure(in: CGSize(width: 360, height: 90))

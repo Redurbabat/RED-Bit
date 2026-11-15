@@ -22,6 +22,7 @@ struct MusicCollectionShowcase: View {
     /// Farbe der Galaxie aus dem Cover der Auswahl (sonst Akzentfarbe).
     @State private var galaxyTint: Color = Theme.accent
     /// Löst den Lichtstreif über die Glaslinse aus; Richtung des letzten Wechsels.
+    @State private var motionRevision = 0
     @State private var glintTrigger = 0
     @State private var glintDirection: CGFloat = 1
 
@@ -117,12 +118,15 @@ struct MusicCollectionShowcase: View {
             dragShift = 0
             return
         }
+        motionRevision &+= 1
+        let revision = motionRevision
         glintDirection = step > 0 ? 1 : -1
         glintTrigger &+= 1
         withAnimation(.easeIn(duration: 0.12)) {
             vinylOut = 0
             glassStretch = step > 0 ? 1 : -1
         } completion: {
+            guard revision == motionRevision else { return }
             withAnimation(.spring(response: 0.62, dampingFraction: 0.76)) {
                 vinylOut = 1
                 glassStretch = 0
@@ -146,6 +150,7 @@ struct MusicCollectionShowcase: View {
 
     /// Lebendige Farbe aus dem Cover der Auswahl; weich überblendet.
     private func loadGalaxyTint() async {
+        galaxyTint = Theme.accent
         guard let url = selection?.thumbnailUrl else { return }
         let sized = SharedArtwork.sized(url, 120) ?? url
         guard let image = await ArtworkCache.shared.load(sized), !Task.isCancelled else { return }
@@ -426,6 +431,8 @@ struct GalaxyBackdrop: View, Animatable {
     var rotation: Double
     let tint: Color
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var visible = false
 
     var animatableData: Double {
         get { rotation }
@@ -433,12 +440,14 @@ struct GalaxyBackdrop: View, Animatable {
     }
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: reduceMotion)) { timeline in
+        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: reduceMotion || !visible || scenePhase != .active)) { timeline in
             let drift: Double = reduceMotion ? 0 : timeline.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 3600) * 0.035
             Canvas { context, size in
                 drawSpace(in: &context, size: size, spin: rotation + drift, time: drift)
             }
         }
+        .onAppear { visible = true }
+        .onDisappear { visible = false }
     }
 
     private func drawSpace(in context: inout GraphicsContext, size: CGSize, spin: Double, time: Double) {

@@ -17,7 +17,9 @@ struct FavoriteStarConfirmation: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
-        content.overlay {
+        content
+            .scaleEffect(expanded && !reduceMotion ? 1.12 : 1)
+            .overlay {
             if expanded {
                 ZStack {
                     ForEach(0..<8) { index in
@@ -34,7 +36,9 @@ struct FavoriteStarConfirmation: ViewModifier {
         .onChange(of: confirmation.revision) { _, revision in
             if let videoID, confirmation.videoID == videoID { burstRevision = revision }
         }
-        .task(id: burstRevision) {
+        .task(id: "\(videoID ?? "")-\(burstRevision)") {
+            expanded = false
+            guard videoID == confirmation.videoID else { return }
             guard burstRevision > 0 else { return }
             withAnimation(reduceMotion ? nil : .easeOut(duration: 0.24)) { expanded = true }
             try? await Task.sleep(for: .milliseconds(600))
@@ -72,6 +76,7 @@ struct PlaylistCoverFan: View {
     let entries: [QueueEntry]
     let onSelect: (Int) -> Void
     @State private var expanded = false
+    @State private var highlightedCover: Int?
     @Namespace private var fan
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(PartyStore.self) private var party
@@ -96,13 +101,19 @@ struct PlaylistCoverFan: View {
                                 VStack(spacing: 8) {
                                     ArtworkView(entry: entry, side: 100).clipShape(.rect(cornerRadius: 12))
                                         .matchedGeometryEffect(id: index, in: fan)
-                                        .rotationEffect(reduceMotion ? .zero : .degrees(fanTilt(index)))
+                                        .rotationEffect(reduceMotion ? .zero : .degrees(highlightedCover == index ? 0 : fanTilt(index)))
+                                        .scaleEffect(highlightedCover == index && !reduceMotion ? 1.04 : 1)
                                         .shadow(color: .black.opacity(0.18), radius: 8, y: 5)
                                     Text(entry.title).font(.caption).lineLimit(2).frame(width: 100)
                                 }.padding(.vertical, 8)
                             }.buttonStyle(.plain).disabled(party.state.controlsLocked)
+                                .onHover { hovering in
+                                    withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.85)) {
+                                        highlightedCover = hovering ? index : nil
+                                    }
+                                }
                                 .accessibilityLabel("Play track: \(entry.title)")
-                                .transition(.scale(scale: 0.6).combined(with: .opacity))
+                                .transition(reduceMotion ? .opacity : .scale(scale: 0.85).combined(with: .opacity))
                         }
                     }.padding(.horizontal, 8)
                 }

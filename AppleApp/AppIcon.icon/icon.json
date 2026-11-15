@@ -1,4 +1,7 @@
 {
+  "features": [
+    "refractivity"
+  ],
   "fill": {
     "linear-gradient": [
       "srgb:0.49412,0.08235,0.20392,1.00000",
@@ -9,11 +12,33 @@
     {
       "layers": [
         {
-          "glass": false,
-          "image-name": "wave.png",
-          "name": "wave"
+          "blend-mode": "normal",
+          "fill": "none",
+          "glass-specializations": [
+            {
+              "value": true
+            },
+            {
+              "appearance": "light",
+              "value": true
+            }
+          ],
+          "image-name": "bird.png",
+          "name": "bird",
+          "position": {
+            "scale": 1,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          }
         }
       ],
+      "refractivity": {
+        "depth": 0.1156640625,
+        "enabled": true,
+        "strength": 1
+      },
       "shadow": {
         "kind": "neutral",
         "opacity": 0.5

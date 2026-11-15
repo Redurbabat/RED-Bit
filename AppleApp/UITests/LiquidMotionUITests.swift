@@ -5,6 +5,161 @@ import XCTest
 /// installed app itself. The test only validates the offline design previews.
 @MainActor
 final class LiquidMotionUITests: XCTestCase {
+    func testBloodstreamLiveConstellationNavigation() throws {
+        guard ProcessInfo.processInfo.environment["REDBIT_LIVE_DEVICE_TESTS"] == "1" else {
+            throw XCTSkip("Echter Musiktest benötigt ausdrücklich REDBIT_LIVE_DEVICE_TESTS=1 und eine vorbereitete Gerätesitzung.")
+        }
+        let app = XCUIApplication()
+        app.activate()
+        func capture(_ name: String) {
+            let shot = XCTAttachment(screenshot: app.screenshot())
+            shot.name = name; shot.lifetime = .keepAlways; add(shot)
+        }
+        let map = app.buttons["red.lyrics.map"]
+        if !map.exists {
+            let pill = app.buttons["bbt.playback.pill.open"]
+            if pill.waitForExistence(timeout: 10) { pill.tap() }
+            let lyrics = app.buttons["quote.bubble"]
+            if lyrics.waitForExistence(timeout: 10) { lyrics.tap() }
+        }
+        XCTAssertTrue(map.waitForExistence(timeout: 20), "Bloodstream-Sternbild muss geöffnet sein")
+        capture("Bloodstream-Sternbild-live")
+        map.tap()
+        capture("Bloodstream-Songkarte-live")
+        app.swipeLeft()
+        capture("Bloodstream-Verlauf-live")
+        let current = app.buttons["red.lyrics.current"]
+        if current.exists && current.isHittable { current.tap() }
+        app.buttons["bbt.lyrics.constellation.list"].tap()
+        capture("Bloodstream-Liste-live")
+        XCUIDevice.shared.press(.home)
+        let timer = expectation(description: "Hintergrundbeobachtung")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 15) { timer.fulfill() }
+        wait(for: [timer], timeout: 20)
+        app.activate()
+        capture("Bloodstream-nach-Hintergrund")
+        let tree = XCTAttachment(string: app.debugDescription)
+        tree.name = "Bloodstream-Navigation-Hierarchie"; tree.lifetime = .keepAlways; add(tree)
+    }
+
+    func testRealCurrentMusicTransportAndZoom() throws {
+        guard ProcessInfo.processInfo.environment["REDBIT_LIVE_DEVICE_TESTS"] == "1" else {
+            throw XCTSkip("Echter Musiktest benötigt ausdrücklich REDBIT_LIVE_DEVICE_TESTS=1 und eine vorbereitete Gerätesitzung.")
+        }
+        let app = XCUIApplication()
+        app.activate()
+        func capture(_ name: String) {
+            let shot = XCTAttachment(screenshot: app.screenshot())
+            shot.name = name
+            shot.lifetime = .keepAlways
+            add(shot)
+        }
+        defer {
+            capture("RED-Bit-Musik-Testabschluss")
+            let tree = XCTAttachment(string: app.debugDescription)
+            tree.name = "RED-Bit-Musik-Player-Hierarchie"
+            tree.lifetime = .keepAlways
+            add(tree)
+        }
+        let pill = app.buttons["bbt.playback.pill.open"]
+        XCTAssertTrue(pill.waitForExistence(timeout: 30))
+        XCTAssertFalse(pill.label.contains("Keine Wiedergabe"), "Kein echter Titel in der Sitzung")
+        capture("RED-Bit-Musik-Mini-Player")
+        let transport = app.buttons["bbt.playback.pill.play"]
+        XCTAssertTrue(transport.exists)
+        if transport.label == "Pause" { transport.tap() }
+        XCTAssertTrue(transport.waitForExistence(timeout: 5))
+        transport.tap()
+        let playing = expectation(for: NSPredicate(format: "label == %@", "Pause"), evaluatedWith: transport)
+        wait(for: [playing], timeout: 30)
+        capture("RED-Bit-Musik-fortgesetzt")
+        pill.tap()
+        let fullPlay = app.buttons["bbt.nowPlaying.play"].firstMatch
+        XCTAssertTrue(fullPlay.waitForExistence(timeout: 15))
+        capture("RED-Bit-Musik-Vollplayer")
+        let tools = app.buttons.matching(NSPredicate(format: "label IN %@", ["More player tools", "Weitere Player-Werkzeuge", "Weitere Playerwerkzeuge"])).firstMatch
+        if tools.exists {
+            tools.tap()
+            capture("RED-Bit-Musik-Werkzeugmenue")
+            let tree = XCTAttachment(string: app.debugDescription)
+            tree.name = "RED-Bit-Musik-Werkzeugmenue-Hierarchie"
+            tree.lifetime = .keepAlways
+            add(tree)
+            app.tap()
+        }
+        let lyrics = app.buttons.matching(NSPredicate(format: "label IN %@", ["Lyrics", "Songtexte", "Songtext", "No lyrics", "Keine Songtexte"])).firstMatch
+        if lyrics.exists && lyrics.isHittable {
+            lyrics.tap()
+            capture("RED-Bit-Musik-Songtextansicht")
+            let tree = XCTAttachment(string: app.debugDescription)
+            tree.name = "RED-Bit-Musik-Songtext-Hierarchie"
+            tree.lifetime = .keepAlways
+            add(tree)
+        }
+        app.swipeLeft()
+        capture("RED-Bit-Musik-Player-nach-links")
+        app.swipeRight()
+        capture("RED-Bit-Musik-Player-nach-rechts")
+    }
+
+    /// Echter Netzwerk-Nutzerweg; ohne Vorschauargumente oder Audio-Fixtures.
+    func testRealMusicSearchAndPlayer() throws {
+        guard ProcessInfo.processInfo.environment["REDBIT_LIVE_DEVICE_TESTS"] == "1" else {
+            throw XCTSkip("Echter Musiktest benötigt ausdrücklich REDBIT_LIVE_DEVICE_TESTS=1 und eine vorbereitete Gerätesitzung.")
+        }
+        let app = XCUIApplication()
+        app.launchArguments += ["-onboarding_done", "YES", "-automix_models_prompt_dismissed_v2", "YES"]
+        app.launch()
+        defer {
+            let shot = XCTAttachment(screenshot: app.screenshot())
+            shot.name = "RED-Bit-Echte-Musik-Endzustand"
+            shot.lifetime = .keepAlways
+            add(shot)
+            let tree = XCTAttachment(string: app.debugDescription)
+            tree.name = "RED-Bit-Echte-Musik-Hierarchie"
+            tree.lifetime = .keepAlways
+            add(tree)
+        }
+        let search = app.tabBars.buttons.containing(.image, identifier: "magnifyingglass").firstMatch
+        if !app.searchFields.firstMatch.exists {
+            XCTAssertTrue(search.waitForExistence(timeout: 30))
+            search.tap()
+        }
+        let field = app.searchFields.firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 15))
+        field.tap()
+        if !app.keyboards.firstMatch.waitForExistence(timeout: 3) {
+            field.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.5)).tap()
+        }
+        // Bei Hardware-Tastatur kann das Feld fokussiert sein, ohne dass iOS
+        // eine Bildschirmtastatur in der Accessibility-Hierarchie meldet.
+        if let value = field.value as? String, value != field.placeholderValue {
+            field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: value.count))
+        }
+        field.typeText("Ed Sheeran Bloodstream\n")
+        let play = app.buttons.matching(NSPredicate(format: "label == %@", "Bloodstream, Ed Sheeran")).firstMatch
+        XCTAssertTrue(play.waitForExistence(timeout: 45), "Keine echte Suchantwort mit abspielbarem Top-Ergebnis")
+        play.tap()
+        let pill = app.buttons["bbt.playback.pill.open"]
+        XCTAssertTrue(pill.waitForExistence(timeout: 20))
+        pill.tap()
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "RED-Bit-Echte-Musik-Vollplayer"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        let lyrics = app.buttons["quote.bubble"]
+        XCTAssertTrue(lyrics.waitForExistence(timeout: 10))
+        lyrics.tap()
+        let lyricsShot = XCTAttachment(screenshot: app.screenshot())
+        lyricsShot.name = "Bloodstream-Songtexte"
+        lyricsShot.lifetime = .keepAlways
+        add(lyricsShot)
+        let tree = XCTAttachment(string: app.debugDescription)
+        tree.name = "Bloodstream-Songtext-Hierarchie"
+        tree.lifetime = .keepAlways
+        add(tree)
+    }
+
     override func setUpWithError() throws {
         continueAfterFailure = false
     }
@@ -142,6 +297,62 @@ final class LiquidMotionUITests: XCTestCase {
         add(stars)
         list.tap()
         XCTAssertTrue(open.waitForExistence(timeout: 10), "Rückkehr aus dem Sternbild zur Liste fehlt")
+    }
+
+    /// Prüft beide Sammlungen getrennt mit Produktionskomponenten und lokalen Prüfdaten.
+    func testAlbumPreviewFlipAndCoverFan() throws {
+        let app = XCUIApplication()
+        app.launchArguments += ["--red-ui-test-creative"]
+        app.launch()
+        let flip = app.buttons["red.album.preview.flip"]
+        XCTAssertTrue(flip.waitForExistence(timeout: 20))
+        var attempts = 0
+        while !flip.isHittable && attempts < 8 { app.swipeUp(); attempts += 1 }
+        XCTAssertTrue(flip.isHittable)
+        let originalLabel = flip.label
+        flip.tap()
+        XCTAssertNotEqual(flip.label, originalLabel)
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "RED-Bit-Album-Rueckseite"
+        shot.lifetime = .keepAlways
+        add(shot)
+        flip.tap()
+        XCTAssertEqual(flip.label, originalLabel)
+        let fan = app.buttons["red.playlist.fan.toggle"]
+        while !fan.isHittable && attempts < 16 { app.swipeDown(); attempts += 1 }
+        XCTAssertTrue(fan.isHittable)
+        fan.tap()
+        let expandedLabel = fan.label
+        fan.tap()
+        XCTAssertNotEqual(fan.label, expandedLabel)
+    }
+
+    func testGalaxyAndRecordsTransitions() throws {
+        let app = XCUIApplication()
+        app.launchArguments += ["--red-ui-test-creative"]
+        app.launch()
+        for style in ["galaxy", "records"] {
+            let collection = app.descendants(matching: .any)["red.fixture.\(style)"].firstMatch
+            XCTAssertTrue(collection.waitForExistence(timeout: 20))
+            let next = collection.buttons["red.collection.next"]
+            var attempts = 0
+            while !next.isHittable && attempts < 6 {
+                app.swipeUp()
+                attempts += 1
+            }
+            XCTAssertTrue(next.isHittable)
+            for step in 0...3 {
+                if step > 0 { next.tap() }
+                let title = ["Abendlicht", "Farbenspiel", "Horizont", "Weitblick"][step]
+                XCTAssertTrue(collection.staticTexts[title].firstMatch.waitForExistence(timeout: 5))
+                let shot = XCTAttachment(screenshot: app.screenshot())
+                shot.name = "RED-Bit-\(style)-Wechsel-\(step)"
+                shot.lifetime = .keepAlways
+                add(shot)
+            }
+            collection.buttons["red.collection.previous"].tap()
+            XCTAssertTrue(collection.staticTexts["Horizont"].firstMatch.waitForExistence(timeout: 5))
+        }
     }
 
     func testCreativeCollectionsAndTimedConstellationFinale() throws {

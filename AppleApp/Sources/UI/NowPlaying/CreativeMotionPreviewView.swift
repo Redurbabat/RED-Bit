@@ -61,10 +61,14 @@ struct CreativeMotionPreviewView: View {
                         .accessibilityIdentifier("red.fixture.lyrics")
                     Text("Musikgalaxie").font(.title2)
                     MusicCollectionShowcase(items: cards)
+                        .accessibilityIdentifier("red.fixture.galaxy")
                     Text("Plattenregal").font(.title2)
                     MusicCollectionShowcase(items: cards, style: .records)
+                        .accessibilityIdentifier("red.fixture.records")
                     PlaylistCoverFan(entries: entries) { index in chosenTrack = entries[index].title }
                     Text(chosenTrack).accessibilityIdentifier("red.fixture.chosen")
+                    Text("Album-Vorschau · lokale Prüfdaten").font(.title2)
+                    AlbumPeekContents(card: cards[0])
                     Text("Automix-Lichtbrücke").font(.title2)
                     AutomixLightBridge(current: entries.first, next: entries.last, progress: 0.5, isMixing: true)
                     HStack {

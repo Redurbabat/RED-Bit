@@ -1,0 +1,55 @@
+{
+  "features" : [
+    "refractivity"
+  ],
+  "fill" : {
+    "linear-gradient" : [
+      "srgb:0.49412,0.08235,0.20392,1.00000",
+      "srgb:0.20000,0.00392,0.03529,1.00000"
+    ]
+  },
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "blend-mode" : "normal",
+          "fill" : "none",
+          "glass-specializations" : [
+            {
+              "value" : true
+            },
+            {
+              "appearance" : "light",
+              "value" : true
+            }
+          ],
+          "image-name" : "wave.png",
+          "name" : "wave",
+          "position" : {
+            "scale" : 1,
+            "translation-in-points" : [
+              4.5,
+              8
+            ]
+          }
+        }
+      ],
+      "refractivity" : {
+        "depth" : 0.1156640625,
+        "enabled" : true,
+        "strength" : 1
+      },
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : false,
+        "value" : 0
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "squares" : "shared"
+  }
+}

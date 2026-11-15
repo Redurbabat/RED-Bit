@@ -179,20 +179,20 @@ struct ConstellationStage: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("bbt.lyrics.constellation.line")
                 Text(beatTimes.isEmpty ? LocalizedStringKey("Light follows lyric timestamps") : LocalizedStringKey("Light follows detected beats"))
-                    .font(.caption2).foregroundStyle(.white.opacity(0.35))
+                    .font(.caption2).foregroundStyle(.white.opacity(0.72))
                 if layout.signature.voiced {
                     Text("Shape follows the singing voice")
-                        .font(.caption2).foregroundStyle(.white.opacity(0.3))
+                        .font(.caption2).foregroundStyle(.white.opacity(0.7))
                 }
                 if words.contains(where: { $0.estimated }) {
                     Text("Word timing estimated from line timestamps")
-                        .font(.caption2).foregroundStyle(.white.opacity(0.3))
+                        .font(.caption2).foregroundStyle(.white.opacity(0.7))
                 }
                 if let sourceLabel, !sourceLabel.isEmpty {
                     Text("Lyrics source: \(sourceLabel)")
-                        .font(.system(size: 9, weight: .semibold))
+                        .font(.caption2.weight(.semibold))
                         .tracking(1)
-                        .foregroundStyle(.white.opacity(0.25))
+                        .foregroundStyle(.white.opacity(0.65))
                 }
             }
             .padding(.horizontal, 22)
@@ -257,7 +257,7 @@ struct ConstellationStage: View {
     private var header: some View {
         VStack(spacing: 8) {
             Button(action: onClose) {
-                Capsule().fill(.white.opacity(0.35)).frame(width: 36, height: 4)
+                Capsule().fill(.white.opacity(0.72)).frame(width: 36, height: 4)
                     .frame(width: 60, height: 44)
                     .contentShape(Rectangle())
             }
@@ -303,12 +303,12 @@ struct ConstellationStage: View {
                         if showsMap { manualMap = false; finaleDismissed = true }
                         else { manualMap = true; historyIndex = nil }
                     }
-                }.frame(minHeight: 44).accessibilityIdentifier("red.lyrics.map")
+                }.frame(minWidth: 88, minHeight: 44).contentShape(Rectangle()).accessibilityIdentifier("red.lyrics.map")
                 if historyIndex != nil {
                     Button { withAnimation(motion) { review(8) } } label: { Image(systemName: "chevron.right").frame(width: 44, height: 44) }
                         .accessibilityLabel("Later lyrics")
                 }
-            }.font(.caption2).buttonStyle(.plain).foregroundStyle(.white.opacity(0.5)).padding(.horizontal, 16)
+            }.font(.caption2).buttonStyle(.plain).foregroundStyle(.white.opacity(0.8)).padding(.horizontal, 16)
         }
         .padding(.top, immersive ? 44 : 0)
     }

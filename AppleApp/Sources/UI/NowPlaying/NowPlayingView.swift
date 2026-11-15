@@ -24,6 +24,7 @@ struct NowPlayingView: View {
     @Environment(\.dismiss) var dismiss
     @Environment(\.accessibilityReduceMotion) var reduceMotion
     @Environment(\.dynamicTypeSize) var dynamicTypeSize
+    @Environment(\.locale) var locale
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var sizeClass
     #endif
@@ -239,11 +240,11 @@ struct NowPlayingView: View {
     var songStatusLine: String? {
         guard !hideSongStatus else { return nil }
         var parts: [String] = []
-        if let source = controller.playbackSourceName { parts.append(source) }
+        if let source = controller.playbackSourceName { parts.append(String(localized: String.LocalizationValue(source), locale: locale)) }
         if let nerd = controller.nerd {
             parts.append(QualityUpgrade.Format.isLosslessCodec(nerd.codec) ? "Lossless" : nerd.codec)
         }
-        if controller.racingLossless { parts.append("Checking for better audio…") }
+        if controller.racingLossless { parts.append(String(localized: "Checking for better audio…", locale: locale)) }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
@@ -253,15 +254,15 @@ struct NowPlayingView: View {
         guard !hideSongStatus, let current = controller.current else { return nil }
         if controller.resolvedOrigin[current.id] == .substitute,
            let source = controller.playbackSourceName {
-            return "Playing from \(source)"
+            return String(localized: "Playing from \(source)", locale: locale)
         }
         if let context = controller.playbackContext, !context.isEmpty {
-            return "Playing from \(context)"
+            return String(localized: "Playing from \(context)", locale: locale)
         }
-        if current.isLocal { return "Playing from Local files" }
-        if current.source.hasPrefix("yt:") { return "Playing from YouTube" }
+        if current.isLocal { return String(localized: "Playing from Local files", locale: locale) }
+        if current.source.hasPrefix("yt:") { return String(localized: "Playing from YouTube", locale: locale) }
         guard !current.source.isEmpty else { return nil }
-        return "Playing from \(current.source)"
+        return String(localized: "Playing from \(current.source)", locale: locale)
     }
 
     // ---- Shared pieces ------------------------------------------------------

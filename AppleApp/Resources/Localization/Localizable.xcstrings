@@ -9971,7 +9971,14 @@
 
     },
     "Lyrics off" : {
-
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Songtexte ausgeschaltet"
+          }
+        }
+      }
     },
     "Lyrics offset" : {
       "localizations" : {
@@ -13380,7 +13387,14 @@
       }
     },
     "Personalized recommendations and your library, on every device." : {
-
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Persönliche Empfehlungen und deine Bibliothek auf jedem Gerät."
+          }
+        }
+      }
     },
     "Phrase Length" : {
       "localizations" : {
@@ -22458,6 +22472,99 @@
       }
     },
     "Zurück" : {
+
+    },
+    "Cover side" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Coverseite"
+          }
+        }
+      }
+    },
+    "Album details" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Albumdetails"
+          }
+        }
+      }
+    },
+    "Show album artwork" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Albumcover anzeigen"
+          }
+        }
+      }
+    },
+    "Show album details" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Albumdetails anzeigen"
+          }
+        }
+      }
+    },
+    "Checking for better audio…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bessere Audioqualität wird gesucht …"
+          }
+        }
+      }
+    },
+    "Cached audio" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zwischengespeicherte Musik"
+          }
+        }
+      }
+    },
+    "Playing from Local files" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wiedergabe aus lokalen Dateien"
+          }
+        }
+      }
+    },
+    "Playing from YouTube" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wiedergabe von YouTube"
+          }
+        }
+      }
+    },
+    "Playing from %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wiedergabe aus %@"
+          }
+        }
+      }
+    },
+    "RED Bit is derived from the Android project by Kushagra Singh. The Apple-platform port and original additions are Copyright © 2026 Martin BAGUMA." : {
 
     }
   },

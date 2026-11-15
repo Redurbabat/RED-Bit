@@ -34,12 +34,40 @@ struct AlbumPeekContents: View {
     var compact = false
     @Environment(AuthController.self) private var auth
     @State private var model = AlbumPeekModel()
+    @State private var showsDetails = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 12) {
-                ArtworkView(url: card.thumbnailUrl, data: nil, side: compact ? 72 : 112)
-                    .clipShape(.rect(cornerRadius: 12))
+                if compact {
+                    ArtworkView(url: card.thumbnailUrl, data: nil, side: 72)
+                        .clipShape(.rect(cornerRadius: 12))
+                } else {
+                    Button {
+                        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.32)) { showsDetails.toggle() }
+                    } label: {
+                        ZStack {
+                            ArtworkView(url: card.thumbnailUrl, data: nil, side: 112)
+                                .opacity(showsDetails ? 0 : 1)
+                            VStack(spacing: 8) {
+                                Image(systemName: "music.note.list")
+                                Text("Album details").font(.caption.weight(.semibold))
+                                Text(card.title).font(.caption2).lineLimit(3)
+                            }
+                            .padding(8).frame(width: 112, height: 112)
+                            .background(.regularMaterial)
+                            .rotation3DEffect(.degrees(reduceMotion ? 0 : 180), axis: (0, 1, 0))
+                            .opacity(showsDetails ? 1 : 0)
+                        }
+                        .frame(width: 112, height: 112)
+                        .clipShape(.rect(cornerRadius: 12))
+                        .rotation3DEffect(.degrees(!reduceMotion && showsDetails ? 180 : 0), axis: (0, 1, 0))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(showsDetails ? "Show album artwork" : "Show album details")
+                    .accessibilityIdentifier("red.album.preview.flip")
+                }
                 VStack(alignment: .leading, spacing: 5) {
                     Text(card.title).font(.headline).lineLimit(3)
                     if let subtitle = card.subtitle { Text(subtitle).font(.subheadline).foregroundStyle(.secondary).lineLimit(2) }
@@ -66,6 +94,7 @@ struct AlbumPeekContents: View {
                 }
             }
         }
+        .onChange(of: card.id) { _, _ in showsDetails = false }
         .task(id: "\(card.id)-\(auth.sessionEpoch)") { await model.load(card) }
     }
 }
