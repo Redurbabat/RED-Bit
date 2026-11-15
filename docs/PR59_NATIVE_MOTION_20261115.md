@@ -52,3 +52,11 @@ Xcode-Release-Archiv aus sauberem App-Commit `0cf95151dff16f33f9078f7446d331f391
 SHA-256: `b13ae5a7c8e49ea8d1948d4ecaf2eaf986ec55af0726cfff8aabdf26488b408a`.
 
 Lokale Dateien unter `build/release/pr59-0cf9515/`: IPA, `build.json`, `SHA256.txt`, `INSTALL.md`. Der anschließende Prüfskript-/Dokumentationscommit ändert keinen App-Code; die IPA bleibt dem oben genannten App-Commit zugeordnet. Externe Signierung und Installation der regulären IPA sowie deren echte Audio-/Cloud-Abnahme bleiben offen. Kein Release veröffentlicht und kein Merge nach main.
+
+## Parallel eingegangene Icon-Korrektur
+
+Während des letzten Dokumentations-Pushs ging `75c25c1` auf demselben PR-Branch ein. Der Commit entfernt Glas-/Brechungsangaben vom Vogel-Icon und die nicht mehr verwendete Wellen-Ebene. Die Absichten überschneiden sich nur gestalterisch; der Prüfskriptcommit betraf getrennte Dateien. Konfliktfreie Integration ohne Force-Push in `4bdd5490a87f48e501e0dda4c7476a0756e657a2`. Die vorbestehende lokale PlaybackPill-Änderung und der unversionierte Nutzerordner bleiben erhalten. Für den integrierten App-Stand wird eine neue reguläre Release-IPA gebaut; das ältere Paket `0cf9515` bleibt ein historischer Zwischennachweis.
+
+## Finale IPA mit vereinfachtem Vogel-Icon
+
+Xcode `ARCHIVE SUCCEEDED` für `4bdd5490a87f48e501e0dda4c7476a0756e657a2`, 142 Sekunden. `build/release/pr59-4bdd549/RedBit-1.0.4-build13-ios-unsigned.ipa` ist die aktuelle Datei, nicht das ältere Zwischenpaket. Regulärer IPA-Prüfer BESTANDEN: ursprüngliche App-Kennung, Widget, native Frameworks und Quellrevision stimmen. SHA-256: `49be2694116013d0633e84b98e632371c5bbaac56f9da88410bde583ace4f23f`. Paketnachweise und Installationsgrenzen liegen daneben. Keine Entwickler-Signatur oder Installation dieser regulären IPA bestätigt.

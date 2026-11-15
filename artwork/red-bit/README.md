@@ -12,7 +12,7 @@ Nutzerquelle: [bird-source.jpg](bird-source.jpg). Gewünschte Korrektur: weißen
 | [bird-brand-preview.png](bird-brand-preview.png) | Quadrat, Maskenvorschau sowie 28/44/80-pt-Silhouette |
 | [wave-icon-composer-before-bird.json](wave-icon-composer-before-bird.json) | Sicherung der bereits lokal geänderten Icon-Composer-Einstellungen vor dieser Umstellung |
 
-Die bisherigen Wellen- und Signaldateien bleiben erhalten. Im bestehenden Icon-Composer-Paket wurden Bildname und Bildposition angepasst; die übrigen bereits lokal geänderten Materialeinstellungen bleiben erhalten. Gleiche Bundle-IDs und Asset-Namen; keine Nutzerdatenmigration nötig.
+Die bisherigen Wellen- und Signaldateien bleiben erhalten. Die ursprünglichen lokalen Materialeinstellungen wurden zunächst bewahrt und in `wave-icon-composer-before-bird.json` gesichert. Die danach parallel eingegangene Korrektur `75c25c1` verwendet den Vogel ausdrücklich ohne Glas-/Brechungsangaben; der integrierte Stand übernimmt diese Absicht. Gleiche Bundle-IDs und Asset-Namen; keine Nutzerdatenmigration nötig.
 
 Prüfung: `sips` bestätigt 1024 × 1024 und kein Alpha. Lokale AppKit-Prüfung: kein weißer Rahmen in der visuellen Quadrat-/Maskenvorschau; 9 von 4096 Randabtastungen sind hell (Feather-/Felsdetails berühren Bildränder). Vorschau mit kleinen Markern visuell gesichtet. `xcodebuild -project AppleApp/RedBitFreeTest.xcodeproj -scheme RedBit -configuration Debug -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build`: BESTANDEN, Log `build/ios/bird-logo-build.log`. Neue Homescreen-/Icon-Composer-Darstellung auf echtem Gerät, Getönt und macOS: NICHT GETESTET.
 
