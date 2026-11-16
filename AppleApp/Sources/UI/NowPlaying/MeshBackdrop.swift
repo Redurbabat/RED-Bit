@@ -20,6 +20,7 @@ struct MeshBackdrop: View {
     var artwork: Data? = nil
 
     @State private var phase: Double = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var base: Color = .black
     @State private var blob0 = Color.clear
     @State private var blob1 = Color.clear
@@ -111,7 +112,10 @@ struct MeshBackdrop: View {
 
     private func settle(seed: Int, artwork: Data?, first: Bool) {
         apply(ArtworkPalette.meshBlobs(from: artwork, seed: seed), animated: !first)
-        guard !reduceAnimation else { return }
+        // Die Drift ist Bewegung über die ganze Fläche: Sie entfällt beim
+        // App-Schalter und bei der System-Einstellung „Bewegung reduzieren“.
+        // Der Farbwechsel selbst bewegt nichts und bleibt erhalten.
+        guard !reduceAnimation, !reduceMotion else { return }
         withAnimation(.timingCurve(0.4, 0.0, 0.2, 1.0, duration: 8)) {
             phase += .pi * 0.45
         }

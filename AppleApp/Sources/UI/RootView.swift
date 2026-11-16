@@ -17,6 +17,7 @@ struct RootView: View {
     @Environment(AuthController.self) private var auth
     @Environment(ToastCenter.self) private var toast
     @Environment(\.openURL) private var openURL
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var updateChecker = UpdateChecker.shared
     #if os(macOS)
     /// Which side panel is open beside the library, if any (M4).
@@ -582,7 +583,7 @@ struct RootView: View {
                     Divider()
                     MacInspectorPane(kind: kind)
                         .frame(width: 340)
-                        .transition(.move(edge: .trailing))
+                        .transition(reduceMotion ? .opacity : .move(edge: .trailing))
                 }
             }
             .animation(.easeInOut(duration: 0.2), value: macInspector)

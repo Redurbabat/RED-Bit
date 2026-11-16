@@ -58,7 +58,9 @@ struct SleeveArt: View {
         .animation(.interactiveSpring(response: 0.38, dampingFraction: 0.72), value: tilt)
         // Beim Titelwechsel bleibt der Cover-Rahmen während des Ladens stabil.
         // Nur bewusstes Pausieren verkleinert ihn leicht, ohne Spring-/Boom-Zoom.
-        .scaleEffect(isPlaying || isBuffering ? 1 : 0.86)
+        // Unter „Bewegung reduzieren“ bleibt er gross; den Pausenzustand zeigt
+        // der Wiedergabeknopf.
+        .scaleEffect(isPlaying || isBuffering || reduceMotion ? 1 : 0.86)
         .animation(.easeOut(duration: 0.18), value: isPlaying || isBuffering)
         .frame(width: side, height: side)
         // Gleichzeitig, damit die Wischgeste der Bühne und das Schließen des

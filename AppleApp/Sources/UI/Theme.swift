@@ -89,9 +89,11 @@ enum Motion {
     static func once(
         _ reduceMotion: Bool,
         duration: Double = 0.25,
-        curve: Animation = .easeInOut
+        curve: Animation? = nil
     ) -> Animation {
-        reduceMotion ? .easeOut(duration: 0.12) : curve
+        // Ohne eigene Kurve gilt `duration`. Eine übergebene Kurve (etwa eine
+        // Feder) bringt ihr Timing selbst mit.
+        reduceMotion ? .easeOut(duration: 0.12) : (curve ?? .easeInOut(duration: duration))
     }
 
     /// A looping animation, or `nil` under Reduce Motion.
@@ -103,11 +105,12 @@ enum Motion {
     static func loop(
         _ reduceMotion: Bool,
         duration: Double,
-        curve: Animation = .easeInOut
+        curve: Animation? = nil
     ) -> Animation? {
-        reduceMotion ? nil : curve
+        // Früher skalierte `.speed(1 / duration)` die 0,35-s-Grundkurve; ein
+        // Zyklus dauerte dadurch nur 0,35 × duration Sekunden.
+        reduceMotion ? nil : (curve ?? .easeInOut(duration: duration))
             .repeatForever(autoreverses: true)
-            .speed(1.0 / max(duration, 0.01))
     }
 }
 

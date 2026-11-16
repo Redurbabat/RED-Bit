@@ -9,6 +9,7 @@ struct OnboardingView: View {
     @Environment(AuthController.self) private var auth
     @Environment(PartyStore.self) private var party
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(OnboardingView.doneKey) private var done = false
     @State private var step = 0
     @State private var name = ""
@@ -28,13 +29,13 @@ struct OnboardingView: View {
             .frame(maxWidth: 520)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(.horizontal, 28)
-            .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity),
-                                    removal: .move(edge: .leading).combined(with: .opacity)))
+            .transition(reduceMotion ? .opacity : .asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity),
+                                                              removal: .move(edge: .leading).combined(with: .opacity)))
             pageDots
                 .padding(.bottom, 20)
         }
         .background(backdrop)
-        .animation(.smooth(duration: 0.35), value: step)
+        .animation(Motion.once(reduceMotion, curve: .smooth(duration: 0.35)), value: step)
         .onAppear { name = party.nickname }
         #if os(macOS)
         .frame(width: 560, height: 620)

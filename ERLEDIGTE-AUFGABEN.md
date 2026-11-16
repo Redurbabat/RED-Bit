@@ -1,5 +1,9 @@
 # Erledigte Aufgaben
 
+## 2026-11-17 · Animationen beachten „Bewegung reduzieren“ auf PR #59
+
+Alle 52 animierenden Dateien geprüft, einschließlich 3D-Cover-Neigung, gestaffelter Regale und Künstlerseite vom 16.11. (alle bereits korrekt). Sieben Stellen korrigiert: Das quadratische Cover schrumpft bei Pause nicht mehr unter „Bewegung reduzieren“; die 8-s-Hintergrund-Drift entfällt auch bei der System-Einstellung, nicht nur beim App-Schalter; Toast, Onboarding-Seiten und der Mac-Inspektor blenden statt zu gleiten; die aktive Lyrics-Zeile wächst nicht mehr; `Motion.once` und `Motion.loop` beachten ihren `duration`-Parameter (vorher lief `loop` 2,86-mal zu schnell). Nachweise: App-Build im iPhone-17-Simulator bestanden; Cover pausiert normal 696 px, mit „Bewegung reduzieren“ 810 px breit (Verhältnis 0,86); `check-native-island-source`, `check-red-morph-source`, `verify-settings-german` bestanden. Gleit- und Überblendvorgänge selbst sowie das echte iPhone **NICHT GETESTET**.
+
 ## 2026-11-14 · Interne Namen heißen RED Bit (E-024) auf PR #59
 
 Code-Bezeichner, Kotlin-Paket, geteiltes Framework, Xcode-Projekt und -Ziele, Datenordner und Paketnamen tragen jetzt RED Bit; Bundle-ID, URL-Schema, App-Group und Keychain bleiben. `BrandMigration` übernimmt beim ersten Start Ordner, Warteschlange und Anmeldecookies und räumt alte Temp-Stücke weg. Verweise auf das Originalprojekt und alle Protokolle behalten ihren Wortlaut ([P-036](PROBLEME.md)). Nachweise: Kotlin-Framework und App gebaut, Simulator gestartet, unsignierte Release-IPA erzeugt; auf iPhone 13 Pro Max (iOS 26.6.1) Prozess `RedBit`, `redbit_brand_migration_v2 = true`, Downloads und Warteschlange erhalten, 212 MB Altreste entfernt ([P-037](PROBLEME.md)); Automix-Modelle öffentlich mit passender SHA-256. Hörbares Audio **NICHT GETESTET**.

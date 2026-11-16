@@ -93,12 +93,12 @@ checks = {
         and "mixing ? .default : .longFormAudio" in sessionAudio
         and 'putBoolean(key: "mix_with_other_audio", value: enabled)' in playerSession
     ),
-    "Titelwechsel ohne kreisförmigen Boom-Zoom; Puffern hält Covergröße": (
+    "Titelwechsel ohne kreisförmigen Boom-Zoom; Puffern und Bewegung reduzieren halten Covergröße": (
         "coverLensRefraction" not in coverTransition
         and ".distortionEffect(" not in coverTransition
         and ".opacity(incomingOpacity)" in coverTransition
         and "withAnimation(.easeOut(duration: 0.18))" in coverTransition
-        and ".scaleEffect(isPlaying || isBuffering ? 1 : 0.86)" in sleeve
+        and ".scaleEffect(isPlaying || isBuffering || reduceMotion ? 1 : 0.86)" in sleeve
         and ".animation(.easeOut(duration: 0.18), value: isPlaying || isBuffering)" in sleeve
         and artworkStage.count("isBuffering: controller.isBuffering") == 2
         and artworkLyrics.count("isBuffering: controller.isBuffering") == 1
