@@ -13,8 +13,11 @@ import AppKit
 
 // The stage: artwork or lyrics, the side panel, and the playback deck.
 extension NowPlayingView {
+    /// Takt der Lyrics-Bühne; siehe die Begründung am iPhone-Pfad unten.
+    static let lyricsFrameInterval: Double = 1.0 / 60.0
+
     var desktopLyricsPane: some View {
-        TimelineView(.animation(minimumInterval: nil, paused: !controller.isPlaying)) { timeline in
+        TimelineView(.animation(minimumInterval: NowPlayingView.lyricsFrameInterval, paused: !controller.isPlaying)) { timeline in
             if lyricsConstellation, LyricsConstellationView.isAvailable(lines: controller.displayedLyrics) {
                 LyricsConstellationView(
                     lines: controller.displayedLyrics,
@@ -233,7 +236,11 @@ extension NowPlayingView {
             // from a frame clock for exactly this reason. The interpolated
             // position is still the engine's measurement; the TimelineView only
             // decides how often we ask where it has got to.
-            TimelineView(.animation(minimumInterval: nil, paused: !controller.isPlaying)) { timeline in
+            //
+            // Höchstens 60-mal pro Sekunde: Ohne Grenze baute ProMotion die ganze
+            // Lyrics-Ansicht bis zu 120-mal pro Sekunde neu. Eine Wortfüllung bleibt
+            // bei 60 Hz flüssig, und das Sternbild zeichnet ohnehin mit eigenen 60 Hz.
+            TimelineView(.animation(minimumInterval: NowPlayingView.lyricsFrameInterval, paused: !controller.isPlaying)) { timeline in
             if lyricsConstellation, LyricsConstellationView.isAvailable(lines: controller.displayedLyrics) {
                 LyricsConstellationView(
                     lines: controller.displayedLyrics,

@@ -60,7 +60,8 @@ struct QueueHorizon: View {
 
     private var accessibleStrip: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 12) {
+            // Faul: Eine lange Warteschlange baute sonst jede Karte samt Cover sofort auf.
+            LazyHStack(spacing: 12) {
                 ForEach(Array(entries.enumerated()), id: \.offset) { index, entry in
                     card(entry, index: index)
                 }
