@@ -22,6 +22,22 @@ struct SleeveArt: View {
     var isBuffering = false
     var canvasActive = true
     var side: CGFloat
+    /// Das Cover neigt sich in 3D zum Finger (iPhone) oder Mauszeiger (Mac).
+    /// Nur im Hauptbereich des Players: Das verkleinerte Cover ist ein Knopf.
+    var interactiveTilt = false
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Fingerposition relativ zur Mitte, je Achse -1 bis 1; nil ohne Berührung.
+    @GestureState private var press: CGPoint?
+    @State private var hover: CGPoint?
+
+    /// Größte Neigung in Grad. Bewusst klein: ein Kippen, kein Umblättern.
+    private static let maxTilt: Double = 9
+
+    private var tilt: CGPoint {
+        guard interactiveTilt, !reduceMotion else { return .zero }
+        return press ?? hover ?? .zero
+    }
 
     var body: some View {
         ZStack {
@@ -30,15 +46,66 @@ struct SleeveArt: View {
                 CanvasVeil(url: canvasURL, fallbackURL: fallbackURL,
                            isPlaying: isPlaying && canvasActive, side: side)
             }
+            if interactiveTilt {
+                sheen
+            }
         }
         .frame(width: side, height: side)
         .clipShape(.rect(cornerRadius: 12, style: .continuous))
-        .shadow(color: .black.opacity(0.45), radius: 24, y: 10)
+        .shadow(color: .black.opacity(0.45), radius: 24, x: -tilt.x * 10, y: 10 - tilt.y * 6)
+        .rotation3DEffect(.degrees(-Double(tilt.y) * Self.maxTilt), axis: (x: 1, y: 0, z: 0), perspective: 0.55)
+        .rotation3DEffect(.degrees(Double(tilt.x) * Self.maxTilt), axis: (x: 0, y: 1, z: 0), perspective: 0.55)
+        .animation(.interactiveSpring(response: 0.38, dampingFraction: 0.72), value: tilt)
         // Beim Titelwechsel bleibt der Cover-Rahmen während des Ladens stabil.
         // Nur bewusstes Pausieren verkleinert ihn leicht, ohne Spring-/Boom-Zoom.
         .scaleEffect(isPlaying || isBuffering ? 1 : 0.86)
         .animation(.easeOut(duration: 0.18), value: isPlaying || isBuffering)
         .frame(width: side, height: side)
+        // Gleichzeitig, damit die Wischgeste der Bühne und das Schließen des
+        // Players weiter zuerst zählen; die Neigung schaut nur mit.
+        .simultaneousGesture(tiltGesture, including: interactiveTilt && !reduceMotion ? GestureMask.all : GestureMask.none)
+        #if os(macOS)
+        .onContinuousHover { phase in
+            guard interactiveTilt else { return }
+            switch phase {
+            case .active(let location): hover = normalized(location)
+            case .ended: hover = nil
+            }
+        }
+        #endif
+    }
+
+    private var tiltGesture: some Gesture {
+        DragGesture(minimumDistance: 0, coordinateSpace: .local)
+            .updating($press) { value, state, _ in
+                state = normalized(value.location)
+            }
+    }
+
+    private func normalized(_ location: CGPoint) -> CGPoint {
+        let span: CGFloat = max(side, 1)
+        let x: CGFloat = (location.x / span) * 2 - 1
+        let y: CGFloat = (location.y / span) * 2 - 1
+        return CGPoint(x: min(1, max(-1, x)), y: min(1, max(-1, y)))
+    }
+
+    /// Ein Lichtstreifen, der gegen die Neigung über das Cover wandert, wie
+    /// Licht auf einer glänzenden Hülle. Unsichtbar, solange niemand kippt.
+    private var sheen: some View {
+        let shiftX: CGFloat = 0.5 - tilt.x * 0.6
+        let shiftY: CGFloat = 0.5 - tilt.y * 0.6
+        let start = UnitPoint(x: shiftX - 0.45, y: shiftY - 0.45)
+        let end = UnitPoint(x: shiftX + 0.45, y: shiftY + 0.45)
+        let strength: Double = Double(min(1, abs(tilt.x) + abs(tilt.y)))
+        return LinearGradient(
+            colors: [.white.opacity(0), .white.opacity(0.24), .white.opacity(0)],
+            startPoint: start,
+            endPoint: end
+        )
+        .blendMode(.plusLighter)
+        .opacity(strength)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 

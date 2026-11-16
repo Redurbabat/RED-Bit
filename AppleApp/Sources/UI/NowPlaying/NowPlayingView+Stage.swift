@@ -211,7 +211,8 @@ extension NowPlayingView {
                     isPlaying: controller.isPlaying,
                     isBuffering: controller.isBuffering,
                     canvasActive: !VideoPlayback.shared.showsVideo,
-                    side: side
+                    side: side,
+                    interactiveTilt: true
                 )
             }
             .id(controller.current?.id)
