@@ -134,7 +134,7 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         UILaunchScreen: {}
         NSMotionUsageDescription: RED Bit uses headphone motion to keep its spatial effect anchored when you turn your head.
-        NSPhotoLibraryAddUsageDescription: RED Bit saves lyric share cards and Liquid Motion design previews to Photos only when you choose to export them.
+        NSPhotoLibraryAddUsageDescription: RED Bit saves lyric share cards to Photos only when you choose to export them.
         NSSpeechRecognitionUsageDescription: RED Bit uses on-device speech recognition to align fetched lyrics with the playing audio. Audio is not sent to a server for alignment.
     entitlements:
       path: RedBit.entitlements

@@ -69,6 +69,5 @@ struct SignalPrism: View {
         .padding(12)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18))
         .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(.white.opacity(0.15)))
-        .background { LiquidLiveCaptureMarker(id: "signal") }
     }
 }

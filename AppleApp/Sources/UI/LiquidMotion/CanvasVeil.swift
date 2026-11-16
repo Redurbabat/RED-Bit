@@ -55,6 +55,5 @@ struct CanvasVeil: View {
             .padding(7)
         }
         .frame(width: side, height: side)
-        .background { LiquidLiveCaptureMarker(id: "canvas") }
     }
 }

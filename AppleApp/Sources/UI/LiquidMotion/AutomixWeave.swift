@@ -145,6 +145,5 @@ struct AutomixWeave: View {
             .frame(minWidth: 340, minHeight: 280)
             #endif
         }
-        .background { LiquidLiveCaptureMarker(id: "automix") }
     }
 }

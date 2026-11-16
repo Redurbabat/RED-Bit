@@ -52,7 +52,6 @@ struct QueueHorizon: View {
                 }
             }
         }
-        .background { LiquidLiveCaptureMarker(id: "queue") }
         .onChange(of: entries.count) { _, count in
             focusVirtual = min(focusedIndex, max(0, count - 1))
         }

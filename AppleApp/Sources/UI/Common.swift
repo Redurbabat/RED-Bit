@@ -497,17 +497,6 @@ struct SkeletonRows: View {
     }
 }
 
-/// One loading shelf card, square like the artwork cards it stands in for.
-struct SkeletonShelfCard: View {
-    var side: CGFloat = Theme.Metrics.shelfCard
-    var cornerRadius: CGFloat = 12
-
-    var body: some View {
-        SkeletonBlock(height: side, cornerRadius: cornerRadius)
-            .frame(width: side)
-    }
-}
-
 /// Music's centered empty state: glyph, bold title, subtitle, one bordered button.
 ///
 /// The copy is `LocalizedStringKey`, not `String`: a call site passing a UI

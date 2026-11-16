@@ -1,5 +1,7 @@
 # BBT-Bit iPhone Foto-Wegweiser
 
+> **Entfernt am 17.11.2026** auf Wunsch des Maintainers, zusammen mit den Einträgen in „Einstellungen ▸ Deine Daten“. Dieses Dokument beschreibt den früheren Stand und bleibt für die Nachvollziehbarkeit erhalten.
+
 Einstellungen > Your Data & Backup > Foto-Wegweiser.
 
 1. Echte Screenshot-Aufnahme starten.

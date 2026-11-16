@@ -58,7 +58,6 @@ struct InfinityDock: View {
             .accessibilityHint("Öffnet Songtexte, Warteschlange und Audio-Werkzeuge")
         }
         .accessibilityElement(children: .contain)
-        .background { LiquidLiveCaptureMarker(id: "dock") }
     }
 }
 

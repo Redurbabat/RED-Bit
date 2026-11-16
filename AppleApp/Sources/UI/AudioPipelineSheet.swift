@@ -373,62 +373,6 @@ struct AudioPipelineSheet: View {
     }
 }
 
-/// Upstream `AudioOutputSheet`: the summary row that opens [AudioPipelineSheet].
-///
-/// The summary is the part worth getting right on its own, because it is what
-/// is visible without opening anything: "Float32 · 48 kHz", or the device name
-/// once there is one. Upstream shows the encoding and rate, whichever it knows.
-struct AudioOutputRow: View {
-    @Environment(PlaybackController.self) private var controller
-    let onOpen: () -> Void
-
-    var body: some View {
-        Button(action: onOpen) {
-            HStack(spacing: 13) {
-                Image(systemName: "slider.horizontal.3")
-                    .scaledFont(size: 16, weight: .medium)
-                    .foregroundStyle(.white.opacity(0.7))
-                    .frame(width: 40, height: 40)
-                    .background(.white.opacity(0.08), in: Circle())
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Audio Pipeline")
-                        .font(.body)
-                        .foregroundStyle(.white.opacity(0.85))
-                        .lineLimit(1)
-                    Text(summary)
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.55))
-                        .lineLimit(1)
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .scaledFont(size: 13, weight: .semibold)
-                    .foregroundStyle(.white.opacity(0.35))
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-
-    /// "PCM 16 · 48 kHz" or "Float32 · 48 kHz", or the device name once the
-    /// engine is open. Whichever is actually known: upstream shows the
-    /// encoding and the rate and falls back to the encoding alone, and there
-    /// is no reason to show a rate the device has not reported.
-    private var summary: String {
-        let device = controller.outputDevice
-        guard controller.settingsAudioReadout.loaded else { return "Not open for the selected track" }
-        if controller.dolbyRenderer != nil { return "Apple Dolby renderer" }
-        guard device.started else { return "Nothing open yet" }
-        var parts: [String] = [AudioSettingsReadout.pcmLabel(device.sampleFormat)]
-        if device.sampleRate > 0 {
-            let khz = Double(device.sampleRate) / 1000
-            parts.append(String(format: khz == khz.rounded() ? "%.0f kHz" : "%.1f kHz", khz))
-        }
-        return parts.joined(separator: " · ")
-    }
-
-}
-
 /// Upstream `AudioOutputSheet`: current outputs, AirPlay, app volume, then the
 /// live pipeline. Output routes are read-only because Apple's system picker
 /// owns route selection.

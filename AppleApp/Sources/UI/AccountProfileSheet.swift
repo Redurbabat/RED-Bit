@@ -451,52 +451,6 @@ struct ProfileCircleButtonStyle: ButtonStyle {
     }
 }
 
-/// An account's avatar, which opens the selector and steps between identities on
-/// a swipe. The compact control upstream puts on every visible account avatar.
-struct AccountAvatarButton: View {
-    @Environment(AuthController.self) private var auth
-    @Environment(PlaybackController.self) private var controller
-    @Environment(AppModel.self) private var appModel
-    #if os(macOS)
-    @Environment(\.openSettings) private var openSettings
-    #endif
-    @State private var showingSheet = false
-
-    private var profile: AccountProfile? { auth.listeningAs?.activeProfile }
-
-    var body: some View {
-        Button {
-            showingSheet = true
-        } label: {
-            Avatar(url: profile?.avatar, name: profile?.name ?? "Account", side: 34)
-                .overlay(alignment: .bottomTrailing) {
-                    Image(systemName: "person.crop.circle.badge.checkmark")
-                        .scaledFont(size: 11, weight: .semibold)
-                        .foregroundStyle(.white, .black.opacity(0.55))
-                        .offset(x: 2, y: 2)
-                }
-        }
-        .buttonStyle(.plain)
-        .disabled(!auth.signedIn || auth.listeningAs == nil)
-        .opacity(auth.signedIn && auth.listeningAs != nil ? 1 : 0.4)
-        .accessibilityLabel(auth.listeningAs.map { "Listening as \($0.activeProfile?.name ?? $0.displayName)" } ?? "Not signed in")
-        .accessibilityHint("Choose which YouTube channel to listen as")
-        .sheet(isPresented: $showingSheet) {
-            AccountProfileSheet(scopedAccountId: auth.listeningAs?.id)
-                .environment(controller)
-                .environment(appModel)
-                .environment(auth)
-        }
-        .gesture(
-            DragGesture(minimumDistance: 24)
-                .onEnded { value in
-                    guard abs(value.translation.width) > abs(value.translation.height) else { return }
-                    auth.stepProfile(forward: value.translation.width < 0)
-                }
-        )
-    }
-}
-
 /// A round image that falls back to a monogram, on a chrome backing.
 struct Avatar: View {
     let url: String?

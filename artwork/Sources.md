@@ -1,5 +1,7 @@
 # BitChord Apple cover
 
+> **17.11.2026:** Die BitChord-Werbecover (Sketch, SVG, Exporte) und `compose_cover.py` wurden auf Wunsch des Maintainers entfernt; der Git-Verlauf enthält sie weiter. Die Angaben zu den Hoverify-Geräterahmen in `Apple-Resources/` gelten unverändert.
+
 ## Design assets used
 
 - Original app icon: the user’s Downloads folder, October 1, 2026. iPad and iPhone screenshots: the user’s Downloads folder, October 25, 2026. Mac screenshot: a full-screen capture from the user’s MacBook Air, November 1, 2026. The profile photo is covered by a plain circle on all three devices.

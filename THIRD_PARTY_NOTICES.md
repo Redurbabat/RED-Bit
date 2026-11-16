@@ -39,7 +39,7 @@ Ktor, Kotlin, kotlinx, QuickJS-KT, and other transitive dependencies have their 
 
 - Settings icon assets include Material Icons Rounded, Apache-2.0 (`AppleApp/Resources/AudioLicenses/material-icons.txt`), and Phosphor Icons, MIT (`AppleApp/Resources/AudioLicenses/PhosphorIcons-MIT.txt`). The custom frame-rate/performance icons and Dolby mark adapted from upstream remain subject to upstream notices; Dolby is a trademark of Dolby Laboratories.
 - `AppleApp/Resources/Localization/Localizable.xcstrings` contains translations carried over from upstream where the English source strings match. The strings remain part of the GPLv3-derived project and are attributed to the upstream project above.
-- The app does not bundle custom font files. Cover exports and device-frame mockups under `artwork/` are repository documentation/marketing assets, not app resources. Their asset provenance and Hoverify usage limits are documented in [`artwork/Sources.md`](artwork/Sources.md).
+- The app does not bundle custom font files. Device-frame mockups and the DMG background under `artwork/` are repository documentation/marketing assets, not app resources. Their asset provenance and Hoverify usage limits are documented in [`artwork/Sources.md`](artwork/Sources.md).
 
 ## In-app acknowledgements
 

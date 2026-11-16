@@ -290,7 +290,6 @@ extension NowPlayingView {
         .accessibilityLabel("More player tools")
         // Der bestehende Live-Screenshot-Marker bleibt nach dem Entfernen
         // des Dock-Regals beim neuen Zugang zu den Player-Werkzeugen.
-        .background { LiquidLiveCaptureMarker(id: "dock") }
     }
 
     var lyricsDisplayPicker: some View {

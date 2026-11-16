@@ -205,10 +205,8 @@ struct LogoGlassBloomIsland: View {
         )
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("bbt.logoGlassBloom")
-        .background { LiquidLiveCaptureMarker(id: "island") }
         .onChange(of: bloom.phase) { _, newPhase in
             if newPhase == .expanded {
-                LiquidLiveCaptureMarker.refresh("island")
                 #if os(iOS)
                 UIImpactFeedbackGenerator(style: .soft).impactOccurred()
                 #endif

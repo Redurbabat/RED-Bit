@@ -480,14 +480,6 @@ private final class SessionDoneAdapter: AuthBridgeDoneCallback {
     func onResult(ok: Bool, message: String?) { onResult(ok, message) }
 }
 
-private final class IdentityDoneAdapter: AuthBridgeIdentityCallback {
-    private let onResult: (String?, String?, String?) -> Void
-    init(onResult: @escaping (String?, String?, String?) -> Void) { self.onResult = onResult }
-    func onResult(pageId: String?, dataSyncId: String?, authUser: String?) {
-        onResult(pageId, dataSyncId, authUser)
-    }
-}
-
 private final class AccountCallbackAdapter: AccountBridgeAccountCallback {
     private let onResult: (String?, String?) -> Void
     init(onResult: @escaping (String?, String?) -> Void) { self.onResult = onResult }

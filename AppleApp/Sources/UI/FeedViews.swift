@@ -727,34 +727,3 @@ struct HeroCard: View {
         }
     }
 }
-
-/// First Home shelf as a larger pager, matching upstream's hero row: shelf 0
-/// whenever the service does not title it "Recents", whatever its length.
-struct HeroShelf: View {
-    let shelf: FeedShelf
-    var preferTrack: Bool = false
-    /// The shelf's own width, measured: an inspector or a split view narrows
-    /// it without changing the window.
-    @State private var width: CGFloat = 0
-
-    /// Upstream's hero width: 70% of the row, capped at 320.
-    private var heroSide: CGFloat {
-        guard width > 0 else { return 240 }
-        return min(width * 0.70, 320)
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(shelf.title)
-                .font(.title2.weight(.bold))
-            ShelfScroller {
-                LazyHStack(spacing: 16) {
-                    ForEach(shelf.items) { card in
-                        HeroCard(card: card, preferTrack: preferTrack, side: heroSide)
-                    }
-                }
-            }
-        }
-        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
-    }
-}

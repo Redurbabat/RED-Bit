@@ -318,12 +318,6 @@ private final class MoodCallbackAdapter: HomeBridgeMoodCallback {
     func onResult(json: String?, message: String?) { onResult(json, message) }
 }
 
-private final class ArtworkCallbackAdapter: HomeBridgeArtworkCallback {
-    private let onResult: (String?, String?) -> Void
-    init(onResult: @escaping (String?, String?) -> Void) { self.onResult = onResult }
-    func onResult(url: String?, message: String?) { onResult(url, message) }
-}
-
 private final class LibraryFeedAdapter: LibraryBridgeFeedCallback {
     private let onResult: (String?, String?) -> Void
     init(onResult: @escaping (String?, String?) -> Void) { self.onResult = onResult }

@@ -283,36 +283,3 @@ extension View {
         accessibilityHidden(true)
     }
 }
-
-/// A labelled, adjustable representation for the app's custom sliders.
-///
-/// The playback scrubber and the volume sliders are hand-drawn rather than
-/// `Slider` because a native slider cannot show the Automix transition window or
-/// the mix sheen behind the playhead. That is a fair trade — but only if the
-/// custom control then *behaves* like a slider to a screen reader, which it did
-/// not: the scrubber published an `accessibilityValue` with no label and no
-/// adjustable action, so a VoiceOver user could not seek at all.
-enum AdjustableAccessibility {
-    /// Apply label, value and increment/decrement behaviour to a custom slider.
-    static func apply<V: View>(
-        to view: V,
-        label: String,
-        value: Double,
-        formatted: String,
-        increment: Double = 1,
-        decrement: Double = 5,
-        onChange: @escaping (Double) -> Void
-    ) -> some View {
-        view
-            .accessibilityElement()
-            .accessibilityLabel(label)
-            .accessibilityValue(formatted)
-            .accessibilityAdjustableAction { direction in
-                switch direction {
-                case .increment: onChange(value + increment)
-                case .decrement: onChange(value - decrement)
-                @unknown default: break
-                }
-            }
-    }
-}
