@@ -1,5 +1,5 @@
 import SwiftUI
-import BitChordShared
+import RedBitShared
 import UniformTypeIdentifiers
 #if os(iOS)
 import UIKit
@@ -11,47 +11,6 @@ import AppKit
 extension SettingsView {
     func buildYourDataRows(_ rows: inout SettingsRows) {
 
-        #if os(iOS)
-        rows.row("Foto-Wegweiser", "Pfeile", "Fotos", "15 Änderungen", "Anleitung", "Rundgang", "Guided") {
-            PushLink {
-                LiquidPhotoWayfinderView()
-            } label: {
-                SettingsLine(
-                    glyph: .replay,
-                    title: "Foto-Wegweiser",
-                    subtitle: "Mit Pfeilen durch alle 15 Änderungen – echte Fotos automatisch aufnehmen"
-                ) {
-                    EmptyView()
-                }
-            }
-        }
-        rows.row("Echte Screenshots", "Live Screenshot", "Original", "Automatische Bildschirmaufnahmen", "PNG") {
-            PushLink {
-                LiquidLiveScreenshotSettingsView()
-            } label: {
-                SettingsLine(
-                    glyph: .export,
-                    title: "Echte Screenshots",
-                    subtitle: "Tatsächliche App-Bildschirme automatisch aufnehmen und teilen"
-                ) {
-                    EmptyView()
-                }
-            }
-        }
-        rows.row("Design-Vorschauen", "Liquid Motion", "Design-Fotos", "Beispieldaten", "Vorschau", "Export") {
-            PushLink {
-                LiquidMotionDesignPhotosView()
-            } label: {
-                SettingsLine(
-                    glyph: .export,
-                    title: "Design-Vorschauen",
-                    subtitle: "Beispielbilder – keine echten App-Screenshots"
-                ) {
-                    EmptyView()
-                }
-            }
-        }
-        #endif
         #if os(iOS)
         rows.row("Vorschau-Selbsttest", "Test", "Diagnose", "15 Designs", "Prüfbericht", "JSON", "Automatisch", "Testbericht") {
             PushLink {
@@ -272,13 +231,21 @@ extension SettingsView {
         rows.row("Version", "version", "build", "release", "credits", "licence", "license",
                  "acknowledgements", "privacy policy") {
             LabeledContent("Version", value: update.currentVersion)
+            LabeledContent("Build-Revision", value: update.revision ?? "Nicht verfügbar")
+                .font(.caption.monospaced())
+                .textSelection(.enabled)
         }
         buildUpdateRows(&rows)
         rows.row("GitHub", "github", "source", "code", "repository") {
-            Link("GitHub", destination: URL(string: "https://github.com/bagumamartin/BitChord")!)
+            Link("GitHub", destination: URL(string: "https://github.com/Redurbabat/RED-Bit")!)
         }
         rows.row("Developer", "developer", "author", "github") {
-            Link("Developer", destination: URL(string: "https://github.com/bagumamartin")!)
+            Link("Developer", destination: URL(string: "https://github.com/Redurbabat")!)
+        }
+        // Dank an die Apple-Grundlage: zeigt auf das fremde Projekt, von dem
+        // RED Bit abstammt, nicht auf RED Bit selbst.
+        rows.row("BitChord-Apple-Grundlage", "bitchord", "upstream", "credits") {
+            Link("BitChord-Apple-Grundlage", destination: URL(string: "https://github.com/bagumamartin/BitChord")!)
         }
         rows.row("Open-source licenses", "open source", "licenses", "license", "acknowledgements", "third party") {
             PushLink {

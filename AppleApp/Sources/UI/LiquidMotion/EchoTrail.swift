@@ -31,6 +31,5 @@ struct EchoTrail: View {
         .onHover { hovering = $0 }
         .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.8), value: hovering)
         .accessibilityLabel("Replay earlier queued song: \(previous.title)")
-        .background { LiquidLiveCaptureMarker(id: "echo") }
     }
 }

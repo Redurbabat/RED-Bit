@@ -1,5 +1,5 @@
 import SwiftUI
-import BitChordShared
+import RedBitShared
 
 /// Detail page for an album / artist / playlist browseId.
 ///
@@ -15,6 +15,7 @@ struct DetailView: View {
     let initialTitle: String
     @Environment(PlaybackController.self) private var controller
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dismiss) private var dismiss
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var sizeClass
@@ -207,6 +208,15 @@ struct DetailView: View {
                         releaseHeader(page, tint: tint, width: width)
                     }
 
+                    if kind(of: page) == .playlist, !page.songs.isEmpty {
+                        PlaylistCoverFan(entries: page.songs.map { toEntry($0, fallbackArt: fallbackArt(page)) }) { selected in
+                            controller.play(page.songs.map { toEntry($0, fallbackArt: fallbackArt(page)) },
+                                at: selected, context: page.title, contextID: browseId,
+                                shuffleRequested: controller.shuffleEnabled, boundedContext: true,
+                                continuationToken: handoffContinuation(page))
+                        }.padding(.vertical, 12)
+                    }
+
                     if isArtist, let shelf = latestReleaseShelf(page), let card = shelf.items.first {
                         latestReleaseCard(card)
                             .padding(.horizontal, 16)
@@ -317,7 +327,8 @@ struct DetailView: View {
                                         ? { showAllGrid = ShowAllGrid(title: shelf.title, items: cards) }
                                         : nil,
                                     inset: 28,
-                                    rail: isArtist
+                                    rail: isArtist,
+                                    records: isArtist && cards.contains { $0.browseId?.hasPrefix("MPRE") == true }
                                 )
                                 .padding(.horizontal, 28)
                                 .padding(.top, 28)
@@ -449,6 +460,7 @@ struct DetailView: View {
                 .allowsHitTesting(false)
             }
             .frame(height: artHeight)
+            .modifier(HeroScrollMotion(height: artHeight, enabled: !reduceMotion))
             .frame(maxHeight: .infinity, alignment: .top)
             .overlay(alignment: .bottom) {
                 mergeBand(tint: tint)
@@ -1780,5 +1792,32 @@ private struct CircleMenuButton<Content: View>: View {
         #endif
         .accessibilityLabel(label)
         .help(label)
+    }
+}
+
+/// Das Künstlerfoto reagiert aufs Scrollen: Nach unten gezogen dehnt es sich
+/// vom Fuß aus und füllt die Lücke, nach oben gescrollt wird es leicht
+/// unscharf, während es aus dem Bild läuft. Kein Versatz nach unten: Der Kopf
+/// ist nicht beschnitten, damit das Dehnen nach oben Platz hat, und ein
+/// Versatz schöbe das Foto unter die Titelliste. Unter Reduce Motion fest.
+private struct HeroScrollMotion: ViewModifier {
+    let height: CGFloat
+    let enabled: Bool
+
+    func body(content: Content) -> some View {
+        if enabled {
+            content.visualEffect { effect, proxy in
+                let minY: CGFloat = proxy.frame(in: .scrollView).minY
+                let pull: CGFloat = max(0, minY)
+                let push: CGFloat = max(0, -minY)
+                let stretch: CGFloat = 1 + pull / max(height, 1)
+                let blur: CGFloat = min(8, push / 40)
+                return effect
+                    .scaleEffect(stretch, anchor: .bottom)
+                    .blur(radius: blur)
+            }
+        } else {
+            content
+        }
     }
 }

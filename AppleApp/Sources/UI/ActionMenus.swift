@@ -1,5 +1,5 @@
 import SwiftUI
-import BitChordShared
+import RedBitShared
 
 /// Apple equivalent of upstream `SongActionsSheet` / `BrowseActionsSheet`:
 /// context menu on both platforms, swipe actions on iOS.
@@ -360,7 +360,11 @@ extension View {
         liftPreview {
             ShelfCardActionButtons(card: card)
         } preview: {
-            ContextMenuPreview(card: card, roundArtwork: roundArtwork)
+            if card.supportsCollectionPeek, !roundArtwork {
+                AlbumPeekPreview(card: card)
+            } else {
+                ContextMenuPreview(card: card, roundArtwork: roundArtwork)
+            }
         }
     }
 }
@@ -429,6 +433,7 @@ struct BrowseActionButtons: View {
 
     @ViewBuilder
     private func browseRows(_ browseId: String) -> some View {
+        QueueCollectionNextButton(browseID: browseId, title: card.title)
         Button("Open") {
             appModel.pendingDetail = .detail(browseId: browseId, title: card.title)
         }
@@ -863,60 +868,5 @@ struct TrackLogSheet: View {
         return dump.split(separator: "\n").map(String.init).filter { line in
             needles.contains { line.contains($0) }
         }
-    }
-}
-
-/// Upstream `SpotifyCanvasAuthScreen`: the full Canvas setup, Apple Settings style.
-///
-/// The `sp_dc` cookie (persisted through the shared settings like the rest of
-/// the canvas configuration), plus the two switches upstream puts on the same
-/// screen: auto-hide the motion art when the still sleeve tells the story, and
-/// prefer Spotify's catalogue when looking motion art up. The lookup itself runs
-/// in the shared `CanvasBridge`, which reads these same keys — so these rows
-/// steer the selection logic rather than duplicating it.
-struct SpotifyCanvasSettingsView: View {
-    @State private var cookie = PlatformSettings.shared.getString(key: "spotify_spdc_token", default: "")
-    @State private var autoHide = PlatformSettings.shared.getBoolean(key: "canvas_autohide", default: false)
-    @State private var prioritizeSpotify = PlatformSettings.shared.getBoolean(key: "prioritize_spotify_canvas", default: false)
-
-    /// Whether motion art should play over this track right now.
-    ///
-    /// The still sleeve wins when auto-hide is on and nothing is moving — the
-    /// caller decides what "nothing is moving" means for the artwork it holds.
-    static func shouldShowCanvas(hasCanvasURL: Bool) -> Bool {
-        guard PlatformSettings.shared.getBoolean(key: "animated_canvas", default: true) else { return false }
-        if PlatformSettings.shared.getBoolean(key: "canvas_autohide", default: false), !hasCanvasURL {
-            return false
-        }
-        return hasCanvasURL
-    }
-
-    var body: some View {
-        Form {
-            Section {
-                SecureField("sp_dc cookie", text: $cookie)
-                    #if os(iOS)
-                    .textContentType(.password)
-                    #endif
-            } header: {
-                Text("Spotify Cookie")
-            } footer: {
-                Text("Paste the sp_dc cookie from an open Spotify web session. RED Bit uses it only to look up looping motion art. Leave blank to skip.")
-            }
-            Section {
-                Toggle("Auto-hide motion art", isOn: $autoHide)
-                Toggle("Prefer Spotify catalogue", isOn: $prioritizeSpotify)
-            } footer: {
-                Text("Auto-hide keeps the still sleeve when no motion clip was found. Prefer Spotify asks Spotify's catalogue first when looking one up.")
-            }
-        }
-        .formStyle(.grouped)
-        .navigationTitle("Spotify Canvas")
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        #endif
-        .onChange(of: cookie) { _, value in AppSettings.shared.setSpotifySpdc(value: value) }
-        .onChange(of: autoHide) { _, value in PlatformSettings.shared.putBoolean(key: "canvas_autohide", value: value) }
-        .onChange(of: prioritizeSpotify) { _, value in PlatformSettings.shared.putBoolean(key: "prioritize_spotify_canvas", value: value) }
     }
 }

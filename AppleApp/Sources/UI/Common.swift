@@ -1,5 +1,5 @@
 import SwiftUI
-import BitChordShared
+import RedBitShared
 import ImageIO
 #if os(iOS)
 import UIKit
@@ -27,6 +27,9 @@ struct ArtworkView: View {
     /// library page, the queue, the mini player and the player itself, which is
     /// upstream's list of `rememberRemoteArtworkUrl` callers as well.
     var remoteId: String?
+    /// Die Pixelgröße, in der dieses Cover gezeichnet wird; eigene Bilddaten werden
+    /// auf diese Größe herunterdekodiert statt in voller Auflösung.
+    private var pixels = 900
     @State private var embedded: Data?
 
     init(entry: QueueEntry?, side: CGFloat? = nil) {
@@ -46,6 +49,7 @@ struct ArtworkView: View {
         let scale = Double(PlatformScale.current)
         self.fill = fill
         self.fallbackInitials = fallbackInitials
+        self.pixels = min(2048, max(64, Int((points * scale).rounded())))
         self.url = url.flatMap { SharedArtwork.sized($0, Int((points * scale).rounded())) }
         self.data = data
         self.side = side
@@ -80,17 +84,26 @@ struct ArtworkView: View {
 
     @ViewBuilder
     private var artwork: some View {
-        // Bytes already in hand win: a downloaded track's own artwork, and a remote
-        // track's extracted cover once it has arrived.
-        if let bytes = data ?? embedded, let image = Self.image(from: bytes) {
-            scaled(image)
-        } else if let url, let cached = ArtworkCache.shared.get(url) {
-            scaled(cached)
-        } else if let url {
-            RemoteArtwork(url: url, fallbackInitials: fallbackInitials)
+        // Ein einziger Weg für eigene Bytes und Adressen, damit ein Wechsel zwischen
+        // beiden die Ansicht nicht neu aufbaut. Bytes in der Hand haben Vorrang: das
+        // eigene Cover eines Downloads und ein aus der Datei gelesenes Cover.
+        if let request = artworkRequest {
+            AsyncArtwork(request: request, fallbackInitials: fallbackInitials)
         } else {
             placeholder
         }
+    }
+
+    private var artworkRequest: AsyncArtwork.Request? {
+        if let bytes = data ?? embedded {
+            let key = ArtworkCache.dataKey(bytes, maxPixels: pixels)
+            return .init(source: .bytes(bytes, maxPixels: pixels), key: key,
+                         initial: ArtworkCache.shared.cachedImage(forKey: key))
+        }
+        if let url {
+            return .init(source: .url(url), key: url, initial: ArtworkCache.shared.get(url))
+        }
+        return nil
     }
 
     /// One drawing of a decoded image, for both platforms.
@@ -112,14 +125,6 @@ struct ArtworkView: View {
         #endif
     }
 
-    private static func image(from data: Data) -> PlatformImage? {
-        #if os(iOS)
-        return UIImage(data: data)
-        #else
-        return NSImage(data: data)
-        #endif
-    }
-
     private var placeholder: some View {
         ZStack {
             Rectangle().fill(.quaternary.opacity(0.6))
@@ -135,52 +140,100 @@ struct ArtworkView: View {
     }
 }
 
-private struct RemoteArtwork: View {
-    let url: String
-    var fallbackInitials: String? = nil
+/// Lädt ein Cover abseits des Hauptthreads und blendet weich über.
+///
+/// Beim Wechsel zu einem neuen Cover bleibt das alte stehen, bis das neue fertig
+/// ist; erst dann blendet es kurz über. Früher wurde das Bild bei jedem Wechsel
+/// geleert und eine Drehscheibe gezeigt, das war das Flackern bei Listen und
+/// Titelwechseln. Beim ersten Laden steht statt der Drehscheibe eine ruhige, aus
+/// dem Schlüssel abgeleitete Farbfläche. Unter Reduce Motion wird direkt getauscht.
+private struct AsyncArtwork: View {
+    enum Source {
+        case url(String)
+        case bytes(Data, maxPixels: Int)
+    }
+
+    struct Request {
+        let source: Source
+        /// Identität des Covers; ein neuer Schlüssel startet das Laden neu.
+        let key: String
+        /// Ein Treffer aus dem Speicher, der ohne Warten gezeigt werden kann.
+        let initial: PlatformImage?
+    }
+
+    let request: Request
+    var fallbackInitials: String?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var image: PlatformImage?
+    @State private var shownKey: String?
     @State private var finished = false
+
+    private var displayed: PlatformImage? { request.initial ?? image }
+    private var displayedKey: String? { request.initial != nil ? request.key : shownKey }
+
+    var body: some View {
+        ZStack {
+            Rectangle().fill(AsyncArtwork.tint(for: request.key))
+            if let displayed {
+                drawn(displayed)
+                    .id(displayedKey)
+                    .transition(.opacity)
+            } else {
+                missingArtwork
+            }
+        }
+        .task(id: request.key) {
+            if let initial = request.initial {
+                image = initial
+                shownKey = request.key
+                finished = true
+                return
+            }
+            finished = false
+            let result: PlatformImage?
+            switch request.source {
+            case .url(let url):
+                result = await ArtworkCache.shared.load(url)
+            case .bytes(let data, let maxPixels):
+                result = await ArtworkCache.shared.image(for: data, key: request.key, maxPixels: maxPixels)
+            }
+            guard !Task.isCancelled else { return }
+            finished = true
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.22)) {
+                // Ein fehlgeschlagenes neues Cover darf nicht das alte stehen lassen:
+                // das wäre das Bild eines anderen Titels.
+                image = result
+                shownKey = result == nil ? nil : request.key
+            }
+        }
+    }
 
     @ViewBuilder private var missingArtwork: some View {
         if let fallbackInitials {
             Text(fallbackInitials).font(.title2.weight(.semibold)).foregroundStyle(.secondary)
-        } else if finished && LocalArtwork.isReference(url) {
+        } else if finished {
             Image(.bchMusicNote).resizable().scaledToFit().padding(20).foregroundStyle(.secondary)
-        } else {
-            ProgressView().controlSize(.mini)
         }
     }
-#if os(iOS)
-    @State private var image: UIImage?
-#else
-    @State private var image: NSImage?
-#endif
 
-    var body: some View {
-        Group {
-#if os(iOS)
-            if let image {
-                Image(uiImage: image).resizable().scaledToFill()
-            } else {
-                Rectangle().fill(.quaternary.opacity(0.6))
-                    .overlay { missingArtwork }
-            }
-#else
-            if let image {
-                Image(nsImage: image).resizable().scaledToFill()
-            } else {
-                Rectangle().fill(.quaternary.opacity(0.6))
-                    .overlay { missingArtwork }
-            }
-#endif
+    @ViewBuilder private func drawn(_ image: PlatformImage) -> some View {
+        #if os(iOS)
+        Image(uiImage: image).resizable().scaledToFill()
+        #else
+        Image(nsImage: image).resizable().scaledToFill()
+        #endif
+    }
+
+    /// Eine ruhige, gedämpfte Farbe pro Cover, stabil über Starts hinweg (FNV-1a),
+    /// damit die Fläche vor dem Laden nicht bei jedem Aufbau anders aussieht.
+    static func tint(for key: String) -> Color {
+        var hash: UInt64 = 0xcbf2_9ce4_8422_2325
+        for byte in key.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x0000_0100_0000_01b3
         }
-        .task(id: url) {
-            image = nil
-            finished = false
-            let result = await ArtworkCache.shared.load(url)
-            guard !Task.isCancelled else { return }
-            image = result
-            finished = true
-        }
+        let hue = Double(hash % 360) / 360
+        return Color(hue: hue, saturation: 0.28, brightness: 0.42).opacity(0.35)
     }
 }
 
@@ -263,12 +316,46 @@ final class ArtworkCache: @unchecked Sendable {
         return resolved
     }
 
+    /// Schlüssel für eigene Bilddaten. Er liest nur Länge, Anfang und Ende statt
+    /// aller Bytes, weil er bei jedem Zeichnen auf dem Hauptthread gebildet wird.
+    static func dataKey(_ data: Data, maxPixels: Int) -> String {
+        var hasher = Hasher()
+        hasher.combine(data.count)
+        hasher.combine(data.prefix(256))
+        hasher.combine(data.suffix(256))
+        return "bytes:\(maxPixels):\(data.count):\(hasher.finalize())"
+    }
+
+    /// Ein schon dekodiertes Bild zu `dataKey(_:maxPixels:)`, ohne zu warten.
+    func cachedImage(forKey key: String) -> PlatformImage? {
+        memory.object(forKey: key as NSString)
+    }
+
+    /// Dekodiert eigene Bilddaten im Hintergrund auf die Zeichengröße und behält
+    /// das Ergebnis im Speicher. Ersetzt das frühere `UIImage(data:)` im `body`.
+    func image(for data: Data, key: String, maxPixels: Int) async -> PlatformImage? {
+        if let hit = cachedImage(forKey: key) { return hit }
+        return await withCheckedContinuation { continuation in
+            readQueue.async { [weak self] in
+                guard let self, let image = Self.decode(data, maxPixels: maxPixels) else {
+                    continuation.resume(returning: nil); return
+                }
+                self.memory.setObject(image, forKey: key as NSString, cost: self.imageCost(image))
+                continuation.resume(returning: image)
+            }
+        }
+    }
+
     private static func decode(_ data: Data, url: String) -> PlatformImage? {
-        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
         let requested: Int
         if let range = url.range(of: #"w\d+-h\d+"#, options: .regularExpression) {
             requested = min(2048, max(64, Int(url[range].dropFirst().split(separator: "-").first ?? "1200") ?? 1200))
         } else { requested = 1200 }
+        return decode(data, maxPixels: requested)
+    }
+
+    private static func decode(_ data: Data, maxPixels requested: Int) -> PlatformImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
         let options: [CFString: Any] = [kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true, kCGImageSourceThumbnailMaxPixelSize: requested,
             kCGImageSourceShouldCacheImmediately: true]
@@ -407,17 +494,6 @@ struct SkeletonRows: View {
         }
         .accessibilityElement()
         .accessibilityLabel("Loading")
-    }
-}
-
-/// One loading shelf card, square like the artwork cards it stands in for.
-struct SkeletonShelfCard: View {
-    var side: CGFloat = Theme.Metrics.shelfCard
-    var cornerRadius: CGFloat = 12
-
-    var body: some View {
-        SkeletonBlock(height: side, cornerRadius: cornerRadius)
-            .frame(width: side)
     }
 }
 
@@ -1043,6 +1119,7 @@ private struct MixSheenBar: View {
 /// Transport haptics — upstream `Haptics.kt`, respecting system settings.
 enum PlaylistPinning {
     static let maxPins = 5
+    static let didChange = Notification.Name("redbit.pins.changed")
 
     static func pinnedIds() -> [String] {
         PlatformSettings.shared.getString(key: "pinned_playlists", default: "")
@@ -1054,7 +1131,9 @@ enum PlaylistPinning {
     static func toggle(browseId: String) -> Bool {
         let before = pinnedIds()
         if !before.contains(browseId), before.count >= maxPins { return false }
-        return AppSettings.shared.togglePinnedPlaylist(browseId: browseId) || before.contains(browseId)
+        let changed = AppSettings.shared.togglePinnedPlaylist(browseId: browseId) || before.contains(browseId)
+        if changed { NotificationCenter.default.post(name: didChange, object: nil) }
+        return changed
     }
 }
 

@@ -29,6 +29,5 @@ struct OutputHaloGlyph: View {
         }
         .frame(width: 44, height: 44)
         .accessibilityHidden(true)
-        .background { LiquidLiveCaptureMarker(id: "output") }
     }
 }

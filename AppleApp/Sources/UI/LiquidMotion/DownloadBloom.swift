@@ -38,6 +38,5 @@ struct DownloadBloom: View {
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18))
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(active) active downloads, \(finished) finished, \(failed) failed")
-        .background { LiquidLiveCaptureMarker(id: "downloads") }
     }
 }

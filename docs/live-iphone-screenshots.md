@@ -1,5 +1,7 @@
 # Echte iPhone-Screenshots der 15 Liquid-Motion-Funktionen
 
+> **Entfernt am 17.11.2026** auf Wunsch des Maintainers, zusammen mit den Einträgen in „Einstellungen ▸ Deine Daten“. Dieses Dokument beschreibt den früheren Stand und bleibt für die Nachvollziehbarkeit erhalten.
+
 ## Problem, das diese Änderung löst
 
 Die ursprüngliche BBT-Bit-Funktion "Design-Fotos" erzeugte **synthetische
