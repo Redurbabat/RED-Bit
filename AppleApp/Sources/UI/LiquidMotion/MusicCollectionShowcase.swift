@@ -433,14 +433,18 @@ struct GalaxyBackdrop: View, Animatable {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     @State private var visible = false
+    /// Im Energiesparmodus steht die Galaxy still; sie bleibt sichtbar, nur ohne Drift.
+    @State private var lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
 
     var animatableData: Double {
         get { rotation }
         set { rotation = newValue }
     }
 
+    private var paused: Bool { reduceMotion || lowPower || !visible || scenePhase != .active }
+
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: reduceMotion || !visible || scenePhase != .active)) { timeline in
+        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: paused)) { timeline in
             let drift: Double = reduceMotion ? 0 : timeline.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 3600) * 0.035
             Canvas { context, size in
                 drawSpace(in: &context, size: size, spin: rotation + drift, time: drift)
@@ -448,11 +452,19 @@ struct GalaxyBackdrop: View, Animatable {
         }
         .onAppear { visible = true }
         .onDisappear { visible = false }
+        .onReceive(NotificationCenter.default.publisher(for: .NSProcessInfoPowerStateDidChange)) { _ in
+            lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
+        }
     }
+
+    /// Stufen, in die die Deckkraft der Partikel gerundet wird. Alle Partikel einer
+    /// Farbe und Stufe landen in einem Pfad: 16 Füllaufrufe statt 420 pro Bild.
+    private static let alphaLevels = 8
 
     private func drawSpace(in context: inout GraphicsContext, size: CGSize, spin: Double, time: Double) {
         let centre = CGPoint(x: size.width / 2, y: size.height / 2)
-        // Ferner Sternstaub über die ganze Fläche, leicht funkelnd.
+        // Ferner Sternstaub über die ganze Fläche, leicht funkelnd; gebündelt wie die Arme.
+        var dust = Array(repeating: Path(), count: Self.alphaLevels)
         for index in 0..<90 {
             let key = UInt64(index) &* 0x9E37_79B9 &+ 101
             let x: CGFloat = CGFloat(MusicMotionGeometry.unit(key)) * size.width
@@ -461,8 +473,10 @@ struct GalaxyBackdrop: View, Animatable {
             let flicker: Double = 0.5 + 0.5 * sin(time * 9 + phase)
             let alpha: Double = 0.08 + 0.22 * flicker
             let radius: CGFloat = 0.4 + CGFloat(MusicMotionGeometry.unit(key &+ 3)) * 0.6
-            context.fill(Path(ellipseIn: CGRect(x: x - radius, y: y - radius, width: radius * 2, height: radius * 2)),
-                         with: .color(.white.opacity(alpha)))
+            dust[Self.level(alpha)].addEllipse(in: CGRect(x: x - radius, y: y - radius, width: radius * 2, height: radius * 2))
+        }
+        for level in 0..<Self.alphaLevels where !dust[level].isEmpty {
+            context.fill(dust[level], with: .color(.white.opacity(Self.alpha(of: level))))
         }
         // Nebel der Scheibe in der Farbe der Auswahl.
         let halo = CGRect(x: centre.x - size.width * 0.46, y: centre.y - size.height * 0.34,
@@ -473,6 +487,9 @@ struct GalaxyBackdrop: View, Animatable {
         // Spiralarme: additiv, damit dichte Stellen wirklich leuchten.
         context.drawLayer { layer in
             layer.blendMode = .plusLighter
+            // Kern-Partikel weiß, die übrigen in der Farbe der Auswahl, je in Stufen.
+            var whiteDots = Array(repeating: Path(), count: Self.alphaLevels)
+            var tintDots = Array(repeating: Path(), count: Self.alphaLevels)
             for index in 0..<420 {
                 let particle = MusicMotionGeometry.spiralParticle(index: index, rotation: spin, size: size)
                 let twinkle: Double = MusicMotionGeometry.unit(UInt64(index) &* 7 &+ 3)
@@ -481,11 +498,16 @@ struct GalaxyBackdrop: View, Animatable {
                 let base: Double = 0.45 + twinkle * 1.0 + inner * 0.9
                 let radius = CGFloat(base * depthScale)
                 let warmth: Double = min(1, inner * 1.4)
-                let colour: Color = particle.radius < 0.22 ? .white : tint
+                let isCore: Bool = particle.radius < 0.22
+                let colour: Color = isCore ? .white : tint
                 let alpha: Double = (0.18 + 0.5 * particle.depth) * (0.55 + 0.45 * twinkle) * (0.6 + 0.4 * warmth)
                 let dot = CGRect(x: particle.point.x - radius, y: particle.point.y - radius,
                                  width: radius * 2, height: radius * 2)
-                layer.fill(Path(ellipseIn: dot), with: .color(colour.opacity(alpha)))
+                if isCore {
+                    whiteDots[Self.level(alpha)].addEllipse(in: dot)
+                } else {
+                    tintDots[Self.level(alpha)].addEllipse(in: dot)
+                }
                 if index % 9 == 0 {
                     let glow = radius * 4
                     layer.fill(Path(ellipseIn: CGRect(x: particle.point.x - glow, y: particle.point.y - glow,
@@ -494,6 +516,11 @@ struct GalaxyBackdrop: View, Animatable {
                                                      center: particle.point, startRadius: 0, endRadius: glow))
                 }
             }
+            for level in 0..<Self.alphaLevels {
+                let opacity: Double = Self.alpha(of: level)
+                if !whiteDots[level].isEmpty { layer.fill(whiteDots[level], with: .color(.white.opacity(opacity))) }
+                if !tintDots[level].isEmpty { layer.fill(tintDots[level], with: .color(tint.opacity(opacity))) }
+            }
         }
         // Heller Kern.
         let coreRadius: CGFloat = min(size.width, size.height) * 0.22
@@ -501,6 +528,16 @@ struct GalaxyBackdrop: View, Animatable {
                                             width: coreRadius * 2, height: coreRadius * 1.24)),
                      with: .radialGradient(Gradient(colors: [.white.opacity(0.42), tint.opacity(0.3), .clear]),
                                            center: centre, startRadius: 0, endRadius: coreRadius))
+    }
+
+    /// Stufe 0 bis alphaLevels-1 für eine Deckkraft zwischen 0 und 1.
+    private static func level(_ alpha: Double) -> Int {
+        min(alphaLevels - 1, max(0, Int(alpha * Double(alphaLevels))))
+    }
+
+    /// Die Deckkraft, mit der eine Stufe gezeichnet wird: die Mitte ihres Bereichs.
+    private static func alpha(of level: Int) -> Double {
+        (Double(level) + 0.5) / Double(alphaLevels)
     }
 }
 
