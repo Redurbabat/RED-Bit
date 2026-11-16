@@ -26,6 +26,10 @@ struct HomeView: View {
     @AppStorage("redbit.home.media_filter") private var mediaFilterRaw = HomeMediaFilter.all.rawValue
     @AppStorage("redbit.home.mix_mood") private var mixMoodRaw = HomeMixMood.balanced.rawValue
     @State private var discovery = HomeDiscoveryModel()
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Regale, die schon hereingeglitten sind. Ein Regal, das beim Scrollen neu
+    /// aufgebaut wird, erscheint dann sofort statt erneut zu gleiten.
+    @State private var arrivedShelves: Set<String> = []
 
     private var mediaFilter: HomeMediaFilter { HomeMediaFilter(rawValue: mediaFilterRaw) ?? .all }
     private var mixMood: Binding<HomeMixMood> {
@@ -173,6 +177,11 @@ struct HomeView: View {
                     .onAppear {
                         if shelf.id == visible.last?.id { Task { await feed.loadMore() } }
                     }
+                    .modifier(ShelfArrival(index: index,
+                                           alreadyShown: arrivedShelves.contains(shelf.id),
+                                           reduceMotion: reduceMotion) {
+                        arrivedShelves.insert(shelf.id)
+                    })
                 }
                 if feed.loadingMore { ProgressView().frame(maxWidth: .infinity, minHeight: 44) }
                 if !visible.isEmpty, feed.canLoadMore {
@@ -204,6 +213,34 @@ struct HomeView: View {
         // Accept the earlier Apple bridge title as well as upstream's canonical
         // "Recents" so the feed keeps the four-row treatment.
         return title == "recents" || title == "recently played"
+    }
+}
+
+/// Regale gleiten beim ersten Erscheinen gestaffelt von unten herein: jedes
+/// 60 ms nach dem vorigen, ab dem sechsten ohne weitere Verzögerung, damit
+/// Nachladen beim Scrollen nicht wartet. Unter Reduce Motion sofort sichtbar.
+private struct ShelfArrival: ViewModifier {
+    let index: Int
+    let alreadyShown: Bool
+    let reduceMotion: Bool
+    let markShown: () -> Void
+    @State private var shown = false
+
+    func body(content: Content) -> some View {
+        let visible: Bool = alreadyShown || shown || reduceMotion
+        content
+            .opacity(visible ? 1 : 0)
+            .offset(y: visible ? 0 : 22)
+            .onAppear {
+                guard !alreadyShown, !reduceMotion, !shown else { return }
+                let delay: Double = Double(min(index, 5)) * 0.06
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.86).delay(delay)) {
+                    shown = true
+                }
+                // Erst nach der Bewegung merken: sonst wäre das Regal sofort sichtbar
+                // und die Animation fiele aus.
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay + 0.6) { markShown() }
+            }
     }
 }
 
