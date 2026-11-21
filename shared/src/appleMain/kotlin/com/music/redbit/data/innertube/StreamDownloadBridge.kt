@@ -320,7 +320,7 @@ object StreamDownloadBridge {
                                     ?.takeIf { sameRendition(currentUrl, it.url) }
                             } else null
                             if (fresh == null) throw e
-                            DebugLog.d("stream re-minted at offset $offset after invalid ranges; resuming on a fresh URL")
+                            DebugLog.i("stream re-minted at offset $offset after invalid ranges; resuming on a fresh URL")
                             currentUrl = fresh.url
                             currentHeaders = fresh.headers
                             invalidRanges = 0
@@ -340,7 +340,7 @@ object StreamDownloadBridge {
                                     ?.takeIf { sameRendition(currentUrl, it.url) }
                             } else null
                             if (fresh == null) throw e
-                            DebugLog.d("stream re-minted at offset $offset; resuming on a fresh URL")
+                            DebugLog.i("stream re-minted at offset $offset; resuming on a fresh URL")
                             currentUrl = fresh.url
                             currentHeaders = fresh.headers
                             continue

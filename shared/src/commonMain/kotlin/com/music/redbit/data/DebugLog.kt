@@ -39,19 +39,40 @@ object DebugLog {
             }.getOrDefault("<URL redacted>")
         }
 
+    /**
+     * Empfänger für die Diagnosedatei des Geräts. `println` erreicht auf einem
+     * iPhone ohne Xcode niemanden; ohne diesen Weg blieben gerade die Entscheidungen
+     * der Stream-Rettung unsichtbar. Erhält nur [i], [w] und [e], bereits bereinigt.
+     */
+    @Volatile
+    var sink: ((String) -> Unit)? = null
+
     fun d(message: String) {
         if (enabled) println("[$TAG] ${sanitize(message)}")
     }
 
+    /** Wie [d], landet aber zusätzlich in der Diagnosedatei: seltene, wichtige Ereignisse. */
+    fun i(message: String) {
+        val line = sanitize(message)
+        if (enabled) println("[$TAG] $line")
+        sink?.invoke("INFO $line")
+    }
+
     fun w(message: String) {
-        if (enabled) println("[$TAG][warn] ${sanitize(message)}")
+        val line = sanitize(message)
+        if (enabled) println("[$TAG][warn] $line")
+        sink?.invoke("WARN $line")
     }
 
     fun w(message: String, error: Throwable) {
-        if (enabled) println("[$TAG][warn] ${sanitize(message)}: ${error::class.simpleName}")
+        val line = "${sanitize(message)}: ${error::class.simpleName}"
+        if (enabled) println("[$TAG][warn] $line")
+        sink?.invoke("WARN $line")
     }
 
     fun e(message: String, error: Throwable) {
-        if (enabled) println("[$TAG][error] ${sanitize(message)}: ${error::class.simpleName}")
+        val line = "${sanitize(message)}: ${error::class.simpleName}"
+        if (enabled) println("[$TAG][error] $line")
+        sink?.invoke("ERROR $line")
     }
 }

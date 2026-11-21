@@ -327,11 +327,11 @@ final class LiquidMotionUITests: XCTestCase {
         XCTAssertNotEqual(fan.label, expandedLabel)
     }
 
-    func testGalaxyAndRecordsTransitions() throws {
+    func testRecordsTransitions() throws {
         let app = XCUIApplication()
         app.launchArguments += ["--red-ui-test-creative"]
         app.launch()
-        for style in ["galaxy", "records"] {
+        for style in ["records"] {
             let collection = app.descendants(matching: .any)["red.fixture.\(style)"].firstMatch
             XCTAssertTrue(collection.waitForExistence(timeout: 20))
             let next = collection.buttons["red.collection.next"]

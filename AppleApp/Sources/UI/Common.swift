@@ -77,6 +77,9 @@ struct ArtworkView: View {
         // Keyed on the track, so a row that scrolls round and comes back as a
         // different track re-resolves instead of showing the previous one's cover.
         .task(id: remoteId) {
+            // Erst leeren: Wird dieselbe Ansicht für einen Titel ohne eingebettetes
+            // Cover wiederverwendet, bliebe sonst das Bild des vorigen stehen.
+            embedded = nil
             guard let remoteId else { return }
             embedded = await EmbeddedArtwork.embeddedCoverData(id: remoteId)
         }
@@ -168,7 +171,12 @@ private struct AsyncArtwork: View {
     @State private var shownKey: String?
     @State private var finished = false
 
-    private var displayed: PlatformImage? { request.initial ?? image }
+    /// Nur das Bild, das zu genau diesem Schlüssel geladen wurde. Während ein
+    /// neues Cover lädt, steht die ruhige Farbfläche statt des alten Bildes:
+    /// sonst zeigte ein Titel sekundenlang das Cover eines anderen.
+    private var displayed: PlatformImage? {
+        request.initial ?? (shownKey == request.key ? image : nil)
+    }
     private var displayedKey: String? { request.initial != nil ? request.key : shownKey }
 
     var body: some View {

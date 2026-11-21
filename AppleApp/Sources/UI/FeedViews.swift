@@ -271,7 +271,7 @@ struct ShelfCarousel: View {
                 }.pickerStyle(.segmented).padding(.horizontal, inset)
             }
             if records && recordsChosen {
-                MusicCollectionShowcase(items: items ?? shelf.items, style: .records, preferTrack: preferTrack)
+                MusicCollectionShowcase(items: items ?? shelf.items, preferTrack: preferTrack)
                     .padding(.horizontal, inset)
             } else {
             ShelfScroller(inset: inset, onProgress: rail ? { updateDot($0) } : nil) {

@@ -163,20 +163,33 @@ extension PlaybackController {
             pendingPlaybackLatency = nil
         }
         loadingGeneration = nil
+        // Ein Tipp auf den Wiedergabeknopf, während der automatisch gewählte
+        // nächste Titel noch lädt, hält das Laden an (`holdAfterLoad`). Das passiert
+        // gerade in der stillen Lücke nach einem Liedende, wenn man glaubt, die Musik
+        // sei stehengeblieben. Scheiterte der Titel dann, blieb die Wiedergabe mit
+        // einer Fehlermeldung stehen. Jetzt wird er auch hier übersprungen; der
+        // Ersatz lädt bereit und spielt auf den nächsten Tipp, statt ungefragt.
+        let heldByListener = holdAfterLoad && state == .paused
         holdAfterLoad = false
         // A song this player moved to on its own is stepped over, not stopped
         // on: upstream's skipPastUnplayable, reached here only after the whole
         // recovery ladder in the resolver has already run.
-        if automaticLoadEntryId == entry.id, state == .buffering, automaticSkips < 3,
+        if automaticLoadEntryId == entry.id, state == .buffering || heldByListener, automaticSkips < 3,
            markUnplayable(entry, after: error),
            let next = nextPlayableIndex(after: playingIndex) {
             automaticSkips += 1
             PlaybackDebugLog.shared.record(
-                "could not play \(entry.title) (\(error.localizedDescription)); moving on to \(queue[next].title)",
+                "could not play \(entry.title) (\(error.localizedDescription)); moving on to \(queue[next].title)"
+                    + (heldByListener ? " (held: paused during load)" : ""),
                 about: entry.id
             )
             automaticLoadEntryId = queue[next].id
             loadCurrent(next, refreshAutoplay: true)
+            if heldByListener {
+                holdAfterLoad = true
+                state = .paused
+                nowPlaying.updateRate(0, position: position)
+            }
             return
         }
         automaticLoadEntryId = nil

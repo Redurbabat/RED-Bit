@@ -1,5 +1,6 @@
 package com.music.redbit.data.innertube
 
+import com.music.redbit.data.DebugLog
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
@@ -95,11 +96,15 @@ internal class PlaybackHistoryReporter<T : Any>(
                 catch (e: CancellationException) { throw e }
                 catch (_: Throwable) { null }
                 if (value != null) {
+                    DebugLog.i("history: tracking opened for ${request.id}")
                     events.send(Event.Opened(request, value))
                     return@launch
                 }
                 if (attempt < 2) delay(2_000)
             }
+            // Ohne geöffnete Sitzung erfährt YouTube nichts von diesem Hören, und die
+            // Empfehlungen können sich nicht anpassen.
+            if (request.generation == generation()) DebugLog.w("history: tracking could not open for ${request.id} after 3 tries")
         }
     }
 
@@ -108,6 +113,7 @@ internal class PlaybackHistoryReporter<T : Any>(
             session.atrSent = true
             scope.launch {
                 if (request.generation == generation()) runCatching { atr(session.value) }
+                    .onFailure { DebugLog.w("history: ATR ping failed for ${request.id}", it) }
             }
         }
         if (request.latestPosition - session.scheduledSeconds >= 30) {
@@ -123,6 +129,9 @@ internal class PlaybackHistoryReporter<T : Any>(
                 if (!final && seconds <= session.reportedSeconds) return@withLock
                 runCatching { watchtime(session.value, seconds, final) }.onSuccess {
                     session.reportedSeconds = maxOf(session.reportedSeconds, seconds)
+                    if (final) DebugLog.i("history: reported ${seconds}s for ${request.id}")
+                }.onFailure {
+                    DebugLog.w("history: watchtime report failed for ${request.id} at ${seconds}s", it)
                 }
             }
         }

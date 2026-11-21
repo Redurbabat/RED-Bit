@@ -59,11 +59,8 @@ struct CreativeMotionPreviewView: View {
                     Button("Sternbild prüfen") { position = 30; showsLyrics = true }
                         .frame(minHeight: 44).buttonStyle(.bordered)
                         .accessibilityIdentifier("red.fixture.lyrics")
-                    Text("Musikgalaxie").font(.title2)
-                    MusicCollectionShowcase(items: cards)
-                        .accessibilityIdentifier("red.fixture.galaxy")
                     Text("Plattenregal").font(.title2)
-                    MusicCollectionShowcase(items: cards, style: .records)
+                    MusicCollectionShowcase(items: cards)
                         .accessibilityIdentifier("red.fixture.records")
                     PlaylistCoverFan(entries: entries) { index in chosenTrack = entries[index].title }
                     Text(chosenTrack).accessibilityIdentifier("red.fixture.chosen")

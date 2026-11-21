@@ -40,6 +40,11 @@ struct RedBitApp: App {
         // Unter dem alten Namen abgelegte Downloads, Warteschlange und
         // Anmeldung übernehmen, bevor irgendein Dienst sie zu lesen versucht.
         BrandMigration.run()
+        // Warnungen aus dem geteilten Kotlin-Teil (Stream-Rettung, Verlaufsmeldung)
+        // in die Diagnosedatei: auf dem iPhone sonst unsichtbar.
+        DebugLog.shared.sink = { line in
+            PlaybackDebugLog.shared.record(line)
+        }
         // Music videos are a per-session choice: the owner wants every session
         // to start with the artwork, and the pill's toggle to turn the picture
         // on for this session only.

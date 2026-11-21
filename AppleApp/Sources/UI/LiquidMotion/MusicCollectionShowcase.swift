@@ -1,28 +1,27 @@
 import SwiftUI
 
-enum CollectionShowcaseStyle { case galaxy, records }
 
 /// Cover aus der bereits geladenen Sammlung. Auswahl und Navigation bleiben getrennt.
 struct MusicCollectionShowcase: View {
     let items: [ShelfCard]
-    var style: CollectionShowcaseStyle = .galaxy
     var preferTrack = false
     @Environment(PlaybackController.self) private var controller
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var typeSize
-    /// Fortlaufende Position ohne Umbruch: Platten und Galaxie drehen beim
+    /// Fortlaufende Position ohne Umbruch: Platten drehen beim
     /// Wechsel über den Rand weiter, statt quer zurückzuspringen.
     @State private var selectedIndex = 0
     /// 1 = Platte ragt aus der Hülle, 0 = eingeschoben (während des Wechsels).
     @State private var vinylOut: CGFloat = 1
     /// Kurzes Dehnen der Glasbühne in Bewegungsrichtung, wie beim Dock.
     @State private var glassStretch: CGFloat = 0
-    /// Finger-Drehung der Galaxie oder Fingerweg im Plattenregal.
+    /// Fingerweg im Plattenregal.
     @State private var dragShift: CGFloat = 0
-    /// Farbe der Galaxie aus dem Cover der Auswahl (sonst Akzentfarbe).
-    @State private var galaxyTint: Color = Theme.accent
     /// Löst den Lichtstreif über die Glaslinse aus; Richtung des letzten Wechsels.
     @State private var motionRevision = 0
+    /// Schritte, die noch auf ihren Weitergang warten. Tippt man während des
+    /// Einfahrens erneut, geht kein Schritt verloren.
+    @State private var pendingSteps = 0
     @State private var glintTrigger = 0
     @State private var glintDirection: CGFloat = 1
 
@@ -42,23 +41,22 @@ struct MusicCollectionShowcase: View {
                 } else {
                     GeometryReader { proxy in
                         ZStack {
-                            if style == .galaxy {
-                                galaxy(size: proxy.size)
-                            } else {
-                                records(size: proxy.size)
-                            }
+                            records(size: proxy.size)
                         }
                         .frame(width: proxy.size.width, height: proxy.size.height)
                         .contentShape(Rectangle())
                         .simultaneousGesture(DragGesture(minimumDistance: 16)
                             .onChanged { value in
                                 guard abs(value.translation.width) > abs(value.translation.height) else { return }
+                                if vinylOut > 0, !reduceMotion {
+                                    withAnimation(.easeOut(duration: 0.22)) { vinylOut = 0 }
+                                }
                                 dragShift = value.translation.width
                             }
                             .onEnded { value in
                                 let horizontal = abs(value.translation.width) > abs(value.translation.height) * 1.3
                                 let travel = value.translation.width + (value.predictedEndTranslation.width - value.translation.width) * 0.3
-                                let unit: CGFloat = style == .galaxy ? 90 : 110
+                                let unit: CGFloat = 110
                                 var steps = Int((-travel / unit).rounded())
                                 if horizontal, steps == 0, abs(value.translation.width) > 30 {
                                     steps = value.translation.width < 0 ? 1 : -1
@@ -70,7 +68,7 @@ struct MusicCollectionShowcase: View {
                                 }
                             })
                     }
-                    .frame(height: style == .galaxy ? 300 : 250)
+                    .frame(height: 250)
                     if let selection {
                         VStack(spacing: 4) {
                             Text(selection.title).font(.headline).lineLimit(2).multilineTextAlignment(.center)
@@ -106,11 +104,14 @@ struct MusicCollectionShowcase: View {
         .accessibilityIdentifier(step < 0 ? "red.collection.previous" : "red.collection.next")
     }
 
-    /// Wechsel in drei Takten: Platte gleitet in die Hülle, Hüllen und Glasbühne
-    /// ziehen weiter, dann rollt die neue Platte wieder heraus.
+    /// Wechsel in drei Takten, nacheinander statt gleichzeitig: Die Platte gleitet
+    /// ganz in ihre Hülle, dann ziehen Hüllen und Glasbühne weiter, und erst wenn
+    /// die neue Hülle steht, rollt ihre Platte heraus. Ist die Platte schon drin
+    /// (Ziehen, schnelles Weitertippen), beginnt der Wechsel sofort beim zweiten Takt.
     private func move(_ step: Int) {
         guard items.count > 1, step != 0 else {
             withAnimation(spring) { dragShift = 0 }
+            if vinylOut < 1, !reduceMotion, pendingSteps == 0 { rollOut(revision: motionRevision) }
             return
         }
         guard !reduceMotion else {
@@ -118,23 +119,44 @@ struct MusicCollectionShowcase: View {
             dragShift = 0
             return
         }
+        pendingSteps += step
         motionRevision &+= 1
         let revision = motionRevision
         glintDirection = step > 0 ? 1 : -1
         glintTrigger &+= 1
-        withAnimation(.easeIn(duration: 0.12)) {
-            vinylOut = 0
-            glassStretch = step > 0 ? 1 : -1
+        if vinylOut > 0 {
+            withAnimation(.easeInOut(duration: 0.24)) {
+                vinylOut = 0
+            } completion: {
+                guard revision == motionRevision else { return }
+                slide(revision: revision)
+            }
+        } else {
+            slide(revision: revision)
+        }
+    }
+
+    /// Zweiter Takt: Die Hüllen gleiten ruhig, ohne Nachfedern, zur neuen Auswahl.
+    private func slide(revision: Int) {
+        let steps = pendingSteps
+        pendingSteps = 0
+        guard steps != 0 else { rollOut(revision: revision); return }
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.88)) {
+            selectedIndex += steps
+            dragShift = 0
+            glassStretch = steps > 0 ? 1 : -1
         } completion: {
             guard revision == motionRevision else { return }
-            withAnimation(.spring(response: 0.62, dampingFraction: 0.76)) {
-                vinylOut = 1
-                glassStretch = 0
-            }
+            rollOut(revision: revision)
         }
-        withAnimation(.spring(response: 0.52, dampingFraction: 0.82)) {
-            selectedIndex += step
-            dragShift = 0
+    }
+
+    /// Dritter Takt: Die Platte der neuen Hülle rollt sanft heraus.
+    private func rollOut(revision: Int) {
+        guard revision == motionRevision else { return }
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.78)) {
+            vinylOut = 1
+            glassStretch = 0
         }
     }
 
@@ -144,73 +166,6 @@ struct MusicCollectionShowcase: View {
         return [0] + [1, -1, 2, -2].filter {
             seen.insert(MusicMotionGeometry.wrapped(index + $0, count: items.count)).inserted
         }
-    }
-
-    // MARK: Musikgalaxie
-
-    /// Lebendige Farbe aus dem Cover der Auswahl; weich überblendet.
-    private func loadGalaxyTint() async {
-        galaxyTint = Theme.accent
-        guard let url = selection?.thumbnailUrl else { return }
-        let sized = SharedArtwork.sized(url, 120) ?? url
-        guard let image = await ArtworkCache.shared.load(sized), !Task.isCancelled else { return }
-        #if os(iOS)
-        let data = image.jpegData(compressionQuality: 0.6)
-        #else
-        let data = image.tiffRepresentation
-        #endif
-        let accent = ArtworkPalette.pageTint(from: data, seed: url.hashValue).accent
-        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.6)) { galaxyTint = accent }
-    }
-
-    private func galaxy(size: CGSize) -> some View {
-        let neighbours = MusicMotionGeometry.neighbours(selected: index, count: items.count)
-        let step = 2 * Double.pi / Double(max(1, neighbours.count))
-        // Die Scheibe dreht mit der Auswahl und folgt live dem Finger.
-        let follow: Double = Double(dragShift) / 90 * step
-        let turn: Double = -Double(selectedIndex) * step + follow
-        return ZStack {
-            GalaxyBackdrop(rotation: turn * 0.6, tint: galaxyTint)
-                .accessibilityHidden(true).allowsHitTesting(false)
-                .task(id: selection?.id) { await loadGalaxyTint() }
-            ForEach(Array(neighbours.enumerated()), id: \.element) { slot, itemIndex in
-                Button {
-                    move(slot + 1)
-                } label: {
-                    ArtworkView(url: items[itemIndex].thumbnailUrl, data: nil, side: 60)
-                        .frame(width: 60, height: 60).clipShape(.rect(cornerRadius: 15))
-                        .overlay(RoundedRectangle(cornerRadius: 15).strokeBorder(
-                            LinearGradient(colors: [.white.opacity(0.55), .white.opacity(0.08)],
-                                           startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Focus collection: \(items[itemIndex].title)")
-                .modifier(OrbitPlacement(angle: orbitAngle(slot: slot, step: step), size: size))
-                .transition(.scale(scale: 0.3).combined(with: .opacity))
-            }
-            if let selection {
-                ZStack {
-                    Circle()
-                        .fill(galaxyTint.opacity(0.12))
-                        .frame(width: min(156, size.width * 0.46), height: min(156, size.width * 0.46))
-                        .modifier(ShowcaseGlass(shape: Circle()))
-                        .overlay(Circle().strokeBorder(.white.opacity(0.22), lineWidth: 0.8))
-                        .shadow(color: galaxyTint.opacity(0.45), radius: 22)
-                        .scaleEffect(1 + abs(glassStretch) * 0.08)
-                    collectionLink(selection, side: min(112, size.width * 0.33))
-                }
-                .id(selection.id)
-                .transition(.asymmetric(insertion: .scale(scale: 0.45).combined(with: .opacity),
-                                        removal: .scale(scale: 0.6).combined(with: .opacity)))
-                .position(x: size.width / 2, y: size.height / 2)
-                .zIndex(5)
-            }
-        }
-    }
-
-    private func orbitAngle(slot: Int, step: Double) -> Double {
-        let follow: Double = Double(dragShift) / 90 * step
-        return -Double.pi / 2 + Double(slot) * step + follow
     }
 
     // MARK: Plattenregal
@@ -395,149 +350,6 @@ private struct SleeveSheen: View {
                        startPoint: UnitPoint(x: 0.1 + phase * 0.4, y: 0), endPoint: UnitPoint(x: 0.6 + phase * 0.4, y: 1))
             .blendMode(.plusLighter)
             .allowsHitTesting(false)
-    }
-}
-
-/// Umlaufbahn mit Tiefe: hintere Cover werden kleiner und blasser. Der Winkel
-/// wird interpoliert, damit Cover entlang der Bahn wandern statt quer zu springen.
-struct OrbitPlacement: ViewModifier, Animatable {
-    var angle: Double
-    let size: CGSize
-
-    var animatableData: Double {
-        get { angle }
-        set { angle = newValue }
-    }
-
-    func body(content: Content) -> some View {
-        let orbit = MusicMotionGeometry.tiltedOrbit(angle: angle, size: size)
-        let scale = CGFloat(0.72 + orbit.depth * 0.42)
-        let opacity: Double = 0.45 + orbit.depth * 0.55
-        let shade: Double = 0.25 * orbit.depth
-        let layer: Double = orbit.depth > 0.75 ? 6 : orbit.depth
-        content
-            .scaleEffect(scale)
-            .opacity(opacity)
-            .shadow(color: .black.opacity(shade), radius: 6, y: 4)
-            .position(orbit.point)
-            .zIndex(layer)
-    }
-}
-
-/// Zweiarmige Spiralgalaxie: Sternstaub in drei Tiefen, leuchtende Arme in der
-/// Farbe der Auswahl, heller Kern. Die Scheibe dreht mit der Auswahl
-/// (animierbar) und treibt zusätzlich langsam, außer bei reduzierter Bewegung.
-struct GalaxyBackdrop: View, Animatable {
-    var rotation: Double
-    let tint: Color
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.scenePhase) private var scenePhase
-    @State private var visible = false
-    /// Im Energiesparmodus steht die Galaxy still; sie bleibt sichtbar, nur ohne Drift.
-    @State private var lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
-
-    var animatableData: Double {
-        get { rotation }
-        set { rotation = newValue }
-    }
-
-    private var paused: Bool { reduceMotion || lowPower || !visible || scenePhase != .active }
-
-    var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: paused)) { timeline in
-            let drift: Double = reduceMotion ? 0 : timeline.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 3600) * 0.035
-            Canvas { context, size in
-                drawSpace(in: &context, size: size, spin: rotation + drift, time: drift)
-            }
-        }
-        .onAppear { visible = true }
-        .onDisappear { visible = false }
-        .onReceive(NotificationCenter.default.publisher(for: .NSProcessInfoPowerStateDidChange)) { _ in
-            lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
-        }
-    }
-
-    /// Stufen, in die die Deckkraft der Partikel gerundet wird. Alle Partikel einer
-    /// Farbe und Stufe landen in einem Pfad: 16 Füllaufrufe statt 420 pro Bild.
-    private static let alphaLevels = 8
-
-    private func drawSpace(in context: inout GraphicsContext, size: CGSize, spin: Double, time: Double) {
-        let centre = CGPoint(x: size.width / 2, y: size.height / 2)
-        // Ferner Sternstaub über die ganze Fläche, leicht funkelnd; gebündelt wie die Arme.
-        var dust = Array(repeating: Path(), count: Self.alphaLevels)
-        for index in 0..<90 {
-            let key = UInt64(index) &* 0x9E37_79B9 &+ 101
-            let x: CGFloat = CGFloat(MusicMotionGeometry.unit(key)) * size.width
-            let y: CGFloat = CGFloat(MusicMotionGeometry.unit(key &+ 1)) * size.height
-            let phase: Double = MusicMotionGeometry.unit(key &+ 2) * 6.28
-            let flicker: Double = 0.5 + 0.5 * sin(time * 9 + phase)
-            let alpha: Double = 0.08 + 0.22 * flicker
-            let radius: CGFloat = 0.4 + CGFloat(MusicMotionGeometry.unit(key &+ 3)) * 0.6
-            dust[Self.level(alpha)].addEllipse(in: CGRect(x: x - radius, y: y - radius, width: radius * 2, height: radius * 2))
-        }
-        for level in 0..<Self.alphaLevels where !dust[level].isEmpty {
-            context.fill(dust[level], with: .color(.white.opacity(Self.alpha(of: level))))
-        }
-        // Nebel der Scheibe in der Farbe der Auswahl.
-        let halo = CGRect(x: centre.x - size.width * 0.46, y: centre.y - size.height * 0.34,
-                          width: size.width * 0.92, height: size.height * 0.68)
-        context.fill(Path(ellipseIn: halo), with: .radialGradient(
-            Gradient(colors: [tint.opacity(0.42), tint.opacity(0.14), .clear]),
-            center: centre, startRadius: 0, endRadius: size.width * 0.46))
-        // Spiralarme: additiv, damit dichte Stellen wirklich leuchten.
-        context.drawLayer { layer in
-            layer.blendMode = .plusLighter
-            // Kern-Partikel weiß, die übrigen in der Farbe der Auswahl, je in Stufen.
-            var whiteDots = Array(repeating: Path(), count: Self.alphaLevels)
-            var tintDots = Array(repeating: Path(), count: Self.alphaLevels)
-            for index in 0..<420 {
-                let particle = MusicMotionGeometry.spiralParticle(index: index, rotation: spin, size: size)
-                let twinkle: Double = MusicMotionGeometry.unit(UInt64(index) &* 7 &+ 3)
-                let inner: Double = 1 - particle.radius
-                let depthScale: Double = 0.65 + particle.depth * 0.55
-                let base: Double = 0.45 + twinkle * 1.0 + inner * 0.9
-                let radius = CGFloat(base * depthScale)
-                let warmth: Double = min(1, inner * 1.4)
-                let isCore: Bool = particle.radius < 0.22
-                let colour: Color = isCore ? .white : tint
-                let alpha: Double = (0.18 + 0.5 * particle.depth) * (0.55 + 0.45 * twinkle) * (0.6 + 0.4 * warmth)
-                let dot = CGRect(x: particle.point.x - radius, y: particle.point.y - radius,
-                                 width: radius * 2, height: radius * 2)
-                if isCore {
-                    whiteDots[Self.level(alpha)].addEllipse(in: dot)
-                } else {
-                    tintDots[Self.level(alpha)].addEllipse(in: dot)
-                }
-                if index % 9 == 0 {
-                    let glow = radius * 4
-                    layer.fill(Path(ellipseIn: CGRect(x: particle.point.x - glow, y: particle.point.y - glow,
-                                                      width: glow * 2, height: glow * 2)),
-                               with: .radialGradient(Gradient(colors: [colour.opacity(alpha * 0.5), .clear]),
-                                                     center: particle.point, startRadius: 0, endRadius: glow))
-                }
-            }
-            for level in 0..<Self.alphaLevels {
-                let opacity: Double = Self.alpha(of: level)
-                if !whiteDots[level].isEmpty { layer.fill(whiteDots[level], with: .color(.white.opacity(opacity))) }
-                if !tintDots[level].isEmpty { layer.fill(tintDots[level], with: .color(tint.opacity(opacity))) }
-            }
-        }
-        // Heller Kern.
-        let coreRadius: CGFloat = min(size.width, size.height) * 0.22
-        context.fill(Path(ellipseIn: CGRect(x: centre.x - coreRadius, y: centre.y - coreRadius * 0.62,
-                                            width: coreRadius * 2, height: coreRadius * 1.24)),
-                     with: .radialGradient(Gradient(colors: [.white.opacity(0.42), tint.opacity(0.3), .clear]),
-                                           center: centre, startRadius: 0, endRadius: coreRadius))
-    }
-
-    /// Stufe 0 bis alphaLevels-1 für eine Deckkraft zwischen 0 und 1.
-    private static func level(_ alpha: Double) -> Int {
-        min(alphaLevels - 1, max(0, Int(alpha * Double(alphaLevels))))
-    }
-
-    /// Die Deckkraft, mit der eine Stufe gezeichnet wird: die Mitte ihres Bereichs.
-    private static func alpha(of level: Int) -> Double {
-        (Double(level) + 0.5) / Double(alphaLevels)
     }
 }
 
