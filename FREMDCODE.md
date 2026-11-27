@@ -16,3 +16,7 @@ Vor jeder Übernahme Herkunft, exakte Version oder Revision, Lizenztext, Rechte 
 Der YouTube-Reparaturbranch ergänzt in der bestehenden GPLv3-Kopie von InnerTubeX die Kandidatenauswahl für progressive Audioantworten, redigierbare Diagnosekategorien und eigene Regressionsfixtures. Die Herkunft und Lizenz des eingebundenen Codes stehen in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 Am 5. November 2026 ergänzt BBT-Bit eine eigene Normalisierung der Apple-Gerätesprache für den Player sowie Regressionsfälle für deutsche Regionstags und unterstützte Sprachvarianten. Es wurden keine neue Laufzeitbibliothek und kein fremder Implementierungscode übernommen.
+
+## RED Native Identity – privater Pilot
+
+Quelle: [Redion, Commit 9646b183](https://github.com/Redurbabat/Redion/tree/9646b183a43451400518c2fe4c17c6208aea3b9a/red-sdk/apple). Lokale, exakt gepinnte Swift-Paketkopie unter `AppleApp/Packages/RedNativeIdentity`, aus dem eigenen RED-Ökosystem. Keine neue Drittanbieter-Laufzeitbibliothek; verwendet Apple Foundation, CryptoKit, Security und CoreImage. Redion hat keine allgemein deklarierte Repository-Lizenz; der Entwurf ist eine interne Integration auf Eigentümerauftrag. Rechte und Lizenzkennzeichnung vor Veröffentlichung prüfen. Datenfluss: nur nach ausdrücklicher Bedienung zum selbst eingegebenen HTTPS-Home-Server; Zugangsdaten bleiben im gerätespezifischen Keychain. Kein Zugriff auf Musikanmeldung, keine automatische Übertragung von Musikdaten.
