@@ -16,6 +16,7 @@ struct RedHomeIdentityView: View {
     @State private var busy = false
     @State private var status = "Noch nicht geprüft."
     @State private var confirmDisconnect = false
+    @State private var confirmForget = false
 
     var body: some View {
         Form {
@@ -67,6 +68,8 @@ struct RedHomeIdentityView: View {
                 }
                 Button("RED ID trennen", role: .destructive) { confirmDisconnect = true }
                     .disabled(busy || savedOrigin.isEmpty)
+                Button("Server lokal vergessen", role: .destructive) { confirmForget = true }
+                    .disabled(busy || savedOrigin.isEmpty)
                 if busy { ProgressView() }
                 Text(status).font(.footnote).foregroundStyle(.secondary)
             }
@@ -96,6 +99,17 @@ struct RedHomeIdentityView: View {
                 }
             }
         } message: { Text("Die Musikanmeldung und lokale Musikdaten bleiben unverändert.") }
+        .alert("Server lokal vergessen?", isPresented: $confirmForget) {
+            Button("Nur lokal löschen", role: .destructive) {
+                do {
+                    let scope = try RedNativeClient.credentialScope(origin: savedOrigin, app: "red-bit")
+                    try RedKeychainStore().clear(scope: scope)
+                    identity = nil; clearProof(); savedOrigin = ""; origin = ""; client = nil
+                    status = "Lokaler Zugang gelöscht. Serverzugang separat in RED ION widerrufen."
+                } catch { status = "Lokale Zugangsdaten konnten nicht gelöscht werden." }
+            }
+            Button("Abbrechen", role: .cancel) {}
+        } message: { Text("Dies widerruft den Serverzugang nicht. Widerrufe RED BIT zuerst in RED ION, falls erreichbar.") }
     }
     private func configure() {
         do {
