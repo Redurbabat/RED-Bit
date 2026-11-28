@@ -63,7 +63,7 @@ Seek-Dauer, Party-Sperren und Mix-Zustand prüft weiterhin die App.
 Next/Previous und Seek sind bewusst nicht als idempotent annotiert:
 ein erneuter Aufruf kann einen anderen Titel treffen. Keine Wiederholung
 bei Timeout; die Quittung bestätigt keinen hörbaren Erfolg. Die vier
-Audio-/Shuffle-Einstellungswerkzeuge bleiben im MCP-Adapter gesperrt.
+Audio-/Shuffle-Einstellungswerkzeuge benötigen das eigene Opt-in unten.
 
 ## Optional: Automix, Equalizer, Qualität und Shuffle
 
@@ -84,11 +84,28 @@ prüft exakte Parameter und Quittungsfelder; unerwartete Daten werden nicht
 an den Host weitergegeben. `requested` bestätigt lediglich einen Auftrag,
 keine erfolgreiche Wiedergabe. Bei unklarem Ausgang erfolgt kein Retry.
 
+## Aufrufschutz (lokale MCP-Sitzung)
+
+Version 0.5 reserviert die ID jedes gültigen, tatsächlich zugelassenen
+Werkzeugaufrufs vor dem Kurzbefehlsstart. Dieselbe ID wird in diesem Prozess
+auch nach einem Fehler oder Timeout nicht erneut ausgeführt. Maximal 4096
+zugelassene Werkzeugaufrufe pro Prozess; danach muss der Host neu verbinden.
+Es gibt keine Löschung alter IDs innerhalb der Sitzung. In einem gleitenden
+60-Sekunden-Fenster sind höchstens 60 Aufrufe insgesamt und 20 Schreibaufrufe
+erlaubt. Reads bleiben bei ausgeschöpftem Schreiblimit möglich, solange das
+Gesamtlimit frei ist. Abgewiesene Aufrufe erreichen die App nicht.
+IDs sind begrenzt; Argumente und Antworten werden nicht im Guard gespeichert.
+Der Host muss pro Anfrage eine neue ID verwenden. Ein neuer Prozess hat
+einen neuen Guard: das ist kein dauerhafter geräteübergreifender Replay-Schutz,
+keine Server-Autorisierung und keine Garantie, dass ein Timeout den bereits
+gestarteten Apple-Kurzbefehl beendet hat. Nicht automatisch mit neuer ID
+wiederholen, sondern Status prüfen und bewusst entscheiden.
+
 ## Tests
 
 `python3 -m unittest discover -s scripts/redbit-mcp -v`
 
-24 lokale Protokoll-/Privacy-/Bridge-Tests (simuliertes shortcuts-Programm),
+31 lokale Protokoll-/Privacy-/Bridge-Tests (simuliertes shortcuts-Programm),
 keine echte macOS-/iPhone-Geräteabnahme. Die tatsächliche App-Antwort, Apple-
 Authentifizierung und der konkrete Host müssen noch gemeinsam erprobt werden.
 Die macOS-Brücke ist kein iOS- oder Windows-Dienst und kein ChatGPT-Cloud-Connector.

@@ -17,6 +17,7 @@ QUEUE = {"version": 1, "total": 4, "upcoming": 3, "automaticUpcoming": 1,
 class ReadPilotTests(unittest.TestCase):
     def setUp(self):
         self.calls = []
+        self.next_id = 0
         self.tools = catalog(Path(__file__).resolve().parents[2] / "docs/red-bit-tool-contract.json")
         self.server = Server(self.tools, self.run_fixture)
 
@@ -24,7 +25,10 @@ class ReadPilotTests(unittest.TestCase):
         self.calls.append(name)
         return STATUS if name == NAMES[0] else QUEUE
 
-    def request(self, method, params=None, ident=1):
+    def request(self, method, params=None, ident=None):
+        if ident is None:
+            self.next_id += 1
+            ident = self.next_id
         return self.server.handle({"jsonrpc": "2.0", "id": ident, "method": method, "params": params or {}})
 
     def ready(self):

@@ -45,6 +45,7 @@ class PreferencePilotTests(unittest.TestCase):
     def setUp(self):
         self.path = Path(__file__).resolve().parents[2] / "docs/red-bit-tool-contract.json"
         self.invocations = []
+        self.next_id = 1
 
     def run_fixture(self, name, arguments=None):
         self.invocations.append((name, arguments))
@@ -62,8 +63,9 @@ class PreferencePilotTests(unittest.TestCase):
         return server
 
     def call(self, server, name, arguments):
+        self.next_id += 1
         return server.handle({
-            "jsonrpc": "2.0", "id": 2, "method": "tools/call",
+            "jsonrpc": "2.0", "id": self.next_id, "method": "tools/call",
             "params": {"name": name, "arguments": arguments},
         })
 

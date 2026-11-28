@@ -1,11 +1,13 @@
 """Local MCP pilot: read-only by default, optional transport. No listener."""
 import argparse
+from collections import deque
 import json
 import math
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import time
 
 PROTOCOL = "2025-11-25"
 NAMES = ("redbit_read_status", "redbit_read_queue")
@@ -201,14 +203,58 @@ class ShortcutRunner:
             return strict_json(raw.decode("utf-8"))
 
 
+class CallGuard:
+    """Per-process dispatch guard; no persistent IDs, payloads or receipts.
+
+    MCP request IDs identify a request within its session. A dispatched call
+    consumes its ID even if the shortcut times out or returns invalid data.
+    No cache eviction: a full session requires reconnecting, not replaying.
+    This is not remote authentication or durable cross-session idempotency.
+    """
+    def __init__(self, clock=time.monotonic, *, max_ids=4096,
+                 total_limit=60, write_limit=20, window=60):
+        self.clock = clock
+        self.max_ids = max_ids
+        self.total_limit = total_limit
+        self.write_limit = write_limit
+        self.window = window
+        self.seen = set()
+        self.total = deque()
+        self.writes = deque()
+
+    def admit(self, ident, write):
+        if type(ident) is str:
+            if not ident or len(ident.encode("utf-8", errors="surrogatepass")) > 128:
+                return "invalid_id"
+        elif type(ident) is not int or not -(2**53 - 1) <= ident <= 2**53 - 1:
+            return "invalid_id"
+        if ident in self.seen:
+            return "duplicate"
+        if len(self.seen) >= self.max_ids:
+            return "session_full"
+        now = self.clock()
+        for events in (self.total, self.writes):
+            while events and now - events[0] >= self.window:
+                events.popleft()
+        if len(self.total) >= self.total_limit or (write and len(self.writes) >= self.write_limit):
+            return "rate_limit"
+        # Reserve before dispatch, including calls that fail or time out.
+        self.seen.add(ident)
+        self.total.append(now)
+        if write:
+            self.writes.append(now)
+        return None
+
+
 class Server:
     def __init__(self, tools, runner, allow_play_pause=False, allow_navigation=False,
-                 allow_volume=False, allow_preferences=False):
+                 allow_volume=False, allow_preferences=False, *, guard=None):
         self.allowed = allowed_names(allow_play_pause, allow_navigation, allow_volume, allow_preferences)
         if tuple(t["name"] for t in tools) != self.allowed:
             raise ValueError("catalog does not match local permissions")
         self.tools = tools
         self.runner = runner
+        self.guard = guard if guard is not None else CallGuard()
         self.phase = "new"
 
     def handle(self, request):
@@ -230,7 +276,7 @@ class Server:
                 return self.error(ident, -32602, "Invalid protocol version")
             self.phase = "initializing"
             result = {"protocolVersion": PROTOCOL, "capabilities": {"tools": {}},
-                      "serverInfo": {"name": "red-bit-local", "version": "0.4.0"}}
+                      "serverInfo": {"name": "red-bit-local", "version": "0.5.0"}}
         elif method == "ping":
             result = {}
         elif self.phase != "ready":
@@ -246,6 +292,15 @@ class Server:
                 validate_arguments(name, args)
             except (ValueError, OverflowError):
                 return self.error(ident, -32602, "Unsupported tool or arguments")
+            blocked = self.guard.admit(ident, name in WRITE_NAMES)
+            if blocked:
+                code, message = {
+                    "invalid_id": (-32600, "Invalid tool request id"),
+                    "duplicate": (-32003, "Tool request id already dispatched; not repeated"),
+                    "session_full": (-32004, "Tool session limit reached; reconnect required"),
+                    "rate_limit": (-32005, "Tool rate limit reached; wait before a new request"),
+                }[blocked]
+                return self.error(ident, code, message)
             try:
                 value = validate_reply(name, self.runner(name, args) if args else self.runner(name))
                 rejected = name in WRITE_NAMES and value["decision"] in ("locked", "unavailable", "invalidValue")
