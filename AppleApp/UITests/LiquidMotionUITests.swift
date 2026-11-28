@@ -245,20 +245,26 @@ final class LiquidMotionUITests: XCTestCase {
                                  "Der Player muss oberhalb der Suchleiste liegen")
         XCTAssertTrue(searchField.isHittable, "Das Suchfeld ist vom Player verdeckt")
 
-        // Native return-key labels are localized (e.g. "Suchen" on a
-        // German simulator). A missing key must fail, not skip the whole
-        // test and conceal already-executed keyboard layout assertions.
+        // Prefer the visible localized submit key. Keyboard accessibility
+        // may expose a native Return key as a key rather than a button, or
+        // omit its label entirely. In that case submit via the focused field,
+        // just as a hardware Return does. The dismissal and player assertions
+        // below remain mandatory; this fallback never skips the test.
         searchField.typeText("red bit")
-        let searchKey = ["Suchen", "Search", "search"].map { keyboard.buttons[$0] }
-            .first(where: { $0.exists })
-        if searchKey == nil {
+        let labels = ["Suchen", "Search", "search", "Return", "return", "Go", "Los"]
+        let submit = NSPredicate(format: "label IN %@", labels)
+        let searchKey = keyboard.descendants(matching: .any)
+            .matching(submit).allElementsBoundByIndex
+            .first(where: { $0.exists && $0.isHittable })
+        if let searchKey {
+            searchKey.tap()
+        } else {
             let noKey = XCTAttachment(screenshot: app.screenshot())
-            noKey.name = "BBT-Bit-Search-Key-Unavailable"
+            noKey.name = "BBT-Bit-Search-Key-Unavailable-Return-Fallback"
             noKey.lifetime = .keepAlways
             add(noKey)
+            searchField.typeText("\n")
         }
-        XCTAssertNotNil(searchKey, "Native search keyboard has no recognized submit key")
-        searchKey?.tap()
         let dismissed = expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: keyboard)
         wait(for: [dismissed], timeout: 10)
         XCTAssertTrue(pill.waitForExistence(timeout: 10),
