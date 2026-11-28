@@ -38,6 +38,8 @@ settings:
     EXCLUDED_ARCHS[sdk=iphonesimulator*]: x86_64
     EXCLUDED_ARCHS[sdk=macosx*]: x86_64
 packages:
+  RedNativeIdentity:
+    path: Packages/RedNativeIdentity
   Sparkle:
     url: https://github.com/sparkle-project/Sparkle
     from: 2.10.0
@@ -90,6 +92,8 @@ targets:
       - sdk: AVFoundation.framework
       - sdk: CoreMotion.framework
       - sdk: Speech.framework
+      - package: RedNativeIdentity
+        product: RedNativeIdentity
       - package: Sparkle
         product: Sparkle
         destinationFilters: [macOS]
@@ -133,6 +137,7 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         UILaunchScreen: {}
+        NSLocalNetworkUsageDescription: RED Bit connects to your private RED Home Server only when you choose to sign in.
         NSMotionUsageDescription: RED Bit uses headphone motion to keep its spatial effect anchored when you turn your head.
         NSPhotoLibraryAddUsageDescription: RED Bit saves lyric share cards to Photos only when you choose to export them.
         NSSpeechRecognitionUsageDescription: RED Bit uses on-device speech recognition to align fetched lyrics with the playing audio. Audio is not sent to a server for alignment.

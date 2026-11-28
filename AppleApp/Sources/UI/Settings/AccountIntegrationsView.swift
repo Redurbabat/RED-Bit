@@ -44,6 +44,13 @@ struct AccountIntegrationsView: View {
 
     var body: some View {
         Form {
+            Section("RED ID") {
+                PushLink {
+                    RedHomeIdentityView()
+                } label: {
+                    Label("RED Home Server", systemImage: "person.crop.circle.badge.checkmark")
+                }
+            }
             // A session that is saved but could not be put back, said out loud.
             //
             // This is the only place it can be seen, and it matters: the failure
