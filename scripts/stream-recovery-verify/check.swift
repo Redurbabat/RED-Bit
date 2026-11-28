@@ -26,6 +26,20 @@ import Foundation
         precondition(policy.claimRetry(position: 2.5, duration: 200))
         policy.select("two", resetAttempts: true) // Explicit replay owns a new budget.
         precondition(policy.claimRetry(position: 2.5, duration: 200))
-        print("PASS stream stall, pause, buffered output, seek, progress, retry budget, new track and natural end")
+        var buffered = PlaybackRecoveryPolicy()
+        buffered.select("buffered", resetAttempts: true)
+        precondition(!buffered.observe(position: 10, now: 0, playing: true, bufferedFrames: 0))
+        precondition(!buffered.observe(position: 10, now: 20, playing: true, bufferedFrames: 100))
+        precondition(!buffered.observe(position: 10, now: 21, playing: true, bufferedFrames: 0))
+        precondition(buffered.observe(position: 10, now: 32, playing: true, bufferedFrames: 0))
+        var recovery = PlaybackRecoveryPolicy()
+        recovery.select("failed", resetAttempts: true)
+        precondition(!recovery.claimRetry(position: 198, duration: 200))
+        precondition(recovery.claimRetry(position: 198, duration: 200, confirmedFailure: true))
+        recovery.select("failed", resetAttempts: false)
+        precondition(recovery.claimRetry(position: 198, duration: 0, confirmedFailure: true))
+        recovery.select("failed", resetAttempts: false)
+        precondition(!recovery.claimRetry(position: 198, duration: 0, confirmedFailure: true))
+        print("PASS stream stall, pause, buffered output, seek, progress, retry budget, new track, natural end and confirmed failure")
     }
 }

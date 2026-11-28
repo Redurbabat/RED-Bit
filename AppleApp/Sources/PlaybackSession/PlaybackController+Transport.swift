@@ -31,6 +31,10 @@ extension PlaybackController {
         wasInterrupted = false
         noteLocalIntent()
         startEngineIfNeeded()
+        if state == .buffering, deferredNetworkRecovery != nil {
+            pausePlayback()
+            return
+        }
         if state == .buffering {
             // Pausing a track that is still loading keeps the load: the bytes
             // and the resolved URL are the expensive part, and throwing them
@@ -186,6 +190,17 @@ extension PlaybackController {
     }
 
     func pausePlayback(releaseAudioSession: Bool = false) {
+        // Beim Warten auf Netz gibt es keinen Load, den holdAfterLoad
+        // fortsetzen könnte. Eine bewusste Pause speichert stattdessen
+        // den Wiederanlaufpunkt; erst Play darf erneut laden.
+        if let pending = deferredNetworkRecovery, current?.id == pending.entryID,
+           playGeneration == pending.generation {
+            restoredStart = (pending.entryID, pending.position)
+            recoveryNeedsFreshResolution = true
+            position = pending.position
+            engineLoadedId = nil
+            recoveringEntryID = nil
+        }
         deferredNetworkRecovery = nil
         resumeGeneration &+= 1
         wasInterrupted = false

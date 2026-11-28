@@ -27,12 +27,17 @@ struct PlaybackRecoveryPolicy {
             lastProgressAt = now
             return false
         }
-        // A full output ring points at the output route rather than an empty stream.
-        return bufferedFrames == 0 && now - (lastProgressAt ?? now) >= 12
+        // Ein nichtleerer Puffer ist kein Stream-Stillstand. Erst ab dem
+        // anschliessenden leeren Puffer beginnt das Zeitfenster erneut.
+        if bufferedFrames > 0 {
+            lastProgressAt = now
+            return false
+        }
+        return now - (lastProgressAt ?? now) >= 12
     }
 
-    mutating func claimRetry(position: Double, duration: Double) -> Bool {
-        guard attempts < 2, duration <= 0 || position < duration - 3 else { return false }
+    mutating func claimRetry(position: Double, duration: Double, confirmedFailure: Bool = false) -> Bool {
+        guard attempts < 2, confirmedFailure || duration <= 0 || position < duration - 3 else { return false }
         attempts += 1
         lastPosition = nil
         lastProgressAt = nil

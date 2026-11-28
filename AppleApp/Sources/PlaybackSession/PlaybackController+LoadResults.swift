@@ -171,6 +171,14 @@ extension PlaybackController {
         // Ersatz lädt bereit und spielt auf den nächsten Tipp, statt ungefragt.
         let heldByListener = holdAfterLoad && state == .paused
         holdAfterLoad = false
+        if recoveringEntryID == entry.id, current?.id == entry.id {
+            if !cancelled && retryFailedRecoveryLoad(entry: entry) { return }
+            // Auch nach dem letzten fehlgeschlagenen Load muss Play an der
+            // Unterbrechungsposition neu auflösen, nicht bei null anfangen.
+            restoredStart = (entry.id, position)
+            recoveryNeedsFreshResolution = true
+            recoveringEntryID = nil
+        }
         // A song this player moved to on its own is stepped over, not stopped
         // on: upstream's skipPastUnplayable, reached here only after the whole
         // recovery ladder in the resolver has already run.
