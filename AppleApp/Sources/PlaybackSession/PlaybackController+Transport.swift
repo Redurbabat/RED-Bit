@@ -33,6 +33,10 @@ extension PlaybackController {
         wasInterrupted = false
         noteLocalIntent()
         startEngineIfNeeded()
+        if state == .buffering, autoplayEndWait != nil {
+            pausePlayback()
+            return
+        }
         if state == .buffering, deferredNetworkRecovery != nil {
             pausePlayback()
             return
@@ -192,6 +196,7 @@ extension PlaybackController {
     }
 
     func pausePlayback(releaseAudioSession: Bool = false) {
+        cancelAutoplayEndWait()
         // Beim Warten auf Netz gibt es keinen Load, den holdAfterLoad
         // fortsetzen könnte. Eine bewusste Pause speichert stattdessen
         // den Wiederanlaufpunkt; erst Play darf erneut laden.

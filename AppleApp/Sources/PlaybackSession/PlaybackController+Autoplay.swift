@@ -170,6 +170,58 @@ extension PlaybackController {
         }
     }
 
+    /// Eine verspätete Radio-Antwort darf die lokale Wiedergabe am
+    /// natürlichen Queue-Ende nicht dauerhaft beenden. Party und Repeat
+    /// haben ihre eigenen Regeln; ohne gültigen Seed gibt es kein Warten.
+    func beginAutoplayEndWait() -> Bool {
+        guard effectiveAutoplayEnabled, repeatMode == .off,
+              !PartyStore.shared.inParty, NetworkQuality.shared.connected,
+              current != nil, autoplayEndWait == nil else { return false }
+        let previousState = state
+        state = .buffering
+        guard let context = recommendationContext else {
+            state = previousState
+            return false
+        }
+        autoplayEndWait = AutoplayEndWait(context: context, now: ProcessInfo.processInfo.systemUptime)
+        nowPlaying.updateRate(0, position: position)
+        debugLog.record("autoplay: waiting for late recommendations at queue end", about: current?.id)
+        maybeAutoplay(force: true)
+        return true
+    }
+
+    func pollAutoplayEndWait() {
+        guard let pending = autoplayEndWait else { return }
+        let sameSelection = playGeneration == pending.context.playbackGeneration
+            && playingIndex == pending.context.index
+        let next = nextPlayableIndex(after: playingIndex)
+        let context = repeatMode == .off && !PartyStore.shared.inParty ? recommendationContext : nil
+        switch pending.decision(current: context, now: ProcessInfo.processInfo.systemUptime,
+                                waiting: state == .buffering && sameSelection, hasNext: next != nil) {
+        case .wait:
+            return
+        case .advance:
+            guard let next else { return }
+            autoplayEndWait = nil
+            debugLog.record("autoplay: late recommendations arrived; continuing", about: current?.id)
+            automaticLoadEntryId = queue[next].id
+            loadCurrent(next, refreshAutoplay: false)
+        case .finish:
+            cancelAutoplayEndWait()
+            finishNaturalQueueEnd()
+        case .cancel:
+            autoplayEndWait = nil
+        }
+    }
+
+    func cancelAutoplayEndWait() {
+        guard autoplayEndWait != nil else { return }
+        autoplayEndWait = nil
+        autoplayRefresh.invalidate()
+        autoplayEmptyRetryTask?.cancel()
+        autoplayEmptyRetryTask = nil
+    }
+
     /// Eine leere Antwort bekommt einen kurzen Zweitversuch. Nur am echten
     /// Queue-Ende läuft der 15-Sekunden-Watchdog, und niemals nach Trackwechsel.
     private func scheduleEmptyAutoplayRetry(request: AutoplayRefreshState.Request) {

@@ -322,6 +322,7 @@ final class PlaybackController {
     /// `id` of the track that was current when [repeatAllStash] was taken.
     var repeatAllStashSeed: String?
     @ObservationIgnored var autoplayRefresh = AutoplayRefreshState()
+    @ObservationIgnored var autoplayEndWait: AutoplayEndWait?
     @ObservationIgnored var autoplaySeeds = AutoplaySeedState()
     var automixPreviewRequest: AutomixPreviewRequest?
     var queuedAutomixPreviewRequest: AutomixPreviewRequest?
@@ -793,6 +794,7 @@ final class PlaybackController {
                 guard let self else { return }
                 for event in drainTechnicalEvents() { self.debugLog.record(event) }
                 self.pollWidgetCommands()
+                self.pollAutoplayEndWait()
                 self.pollStreamRecovery()
                 guard self.state == .playing else { return }
                 // Load/handoff snapshots precede the first rendered chunk. Refresh

@@ -47,3 +47,7 @@ Jeder Bereich bekommt Quellnachweis, Tests, SHA, Build/Plattform, Status und bek
 - Diagnose ergänzt um Underruns, Rebuilds, Xruns, Sessionstatus und System-/Geräteunterbrechungsgründe.
 - Policy-Regressionen für Wartezeit, Pausen, Fortschritt, leeren Puffer und begrenzte Reparatur. Keine Geräteabnahme behauptet.
 - Weitere Roadmap-Bereiche bleiben offen; insbesondere native UI, Sync, MCP, RED DJ und IPA müssen separat abgenommen werden.
+
+## Folgebranch: Audio-Kontinuität
+
+Der Branch `feat/red-bit-audio-continuity-20261128` basiert auf PR #59 (bd15a0f); der laufende Gerätebau bleibt unberührt. Erster Umfang: natürliches Ende der lokalen Queue bei aktivem Autoplay wartet höchstens 20 Sekunden auf verspätete Empfehlungen. Auswahl-, Queue- und Kontokontext sowie Pause/Repeat/Party begrenzen den Wiederanlauf. Ohne Netzwerk oder Seed bleibt das normale Ende erhalten. Sieben neue Policy-Prüfungen in der bestehenden Queue-Suite; echte Wiedergabe und Gerätebau sind nicht bestätigt. Weitere Audio-, Design- und Ökosystem-Punkte bleiben offen.

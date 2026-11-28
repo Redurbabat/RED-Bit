@@ -199,12 +199,20 @@ extension PlaybackController {
                 loadCurrent(next, refreshAutoplay: false)
                 return
             }
-            state = .stopped
-            position = 0
-            nowPlaying.updateRate(0.0, position: 0)
-            nowPlaying.stop()
-            deactivateAudioSessionIfIdle()
+            if beginAutoplayEndWait() { return }
+            finishNaturalQueueEnd()
         }
+    }
+
+    func finishNaturalQueueEnd() {
+        state = .stopped
+        position = 0
+        nowPlaying.updateRate(0.0, position: 0)
+        nowPlaying.stop()
+        widgetPublisher.publish(entry: current, isPlaying: false,
+                                canNext: canPlayNext, canPrevious: canPlayPrevious)
+        persistSession()
+        deactivateAudioSessionIfIdle()
     }
 
     /// A "natural end" that is really a download that gave up part-way (the

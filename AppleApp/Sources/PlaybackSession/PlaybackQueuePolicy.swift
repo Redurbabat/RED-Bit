@@ -162,3 +162,23 @@ struct AutoplayRefreshState {
         retries = 0
     }
 }
+
+/// Kurzes Wartefenster am natürlichen Ende der lokalen Queue.
+/// Die ursprüngliche Auswahl und der Kontokontext bleiben massgebend.
+struct AutoplayEndWait {
+    enum Decision: Equatable { case wait, advance, finish, cancel }
+    let context: AutoplayRefreshState.Context
+    let deadline: TimeInterval
+
+    init(context: AutoplayRefreshState.Context, now: TimeInterval) {
+        self.context = context
+        self.deadline = now + 20
+    }
+
+    func decision(current: AutoplayRefreshState.Context?, now: TimeInterval,
+                  waiting: Bool, hasNext: Bool) -> Decision {
+        guard waiting else { return .cancel }
+        guard current == context, now < deadline else { return .finish }
+        return hasNext ? .advance : .wait
+    }
+}
