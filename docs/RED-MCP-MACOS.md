@@ -38,8 +38,8 @@ Erst nach einem erfolgreichen Lesetest und ausdrücklicher Entscheidung des
 Nutzers kann der lokale Host mit dem zusätzlichen Startargument
 `--allow-play-pause` neu gestartet werden. In RED Bit muss zusätzlich
 die lokale Transportfreigabe aktiv sein. Dann erscheinen `redbit_play`
-und `redbit_pause` mit jeweils `{}` als Eingabe. Die anderen acht
-schreibenden Werkzeuge bleiben gesperrt. Der Standardmodus bleibt lesend.
+und `redbit_pause` mit jeweils `{}` als Eingabe. Weitere Werkzeuge
+benötigen separate Host-Startargumente. Der Standardmodus bleibt lesend.
 
 `requested` bestätigt nur den Auftrag, `unchanged` den bereits vorliegenden
 Zustand. `locked` und `unavailable` sind Werkzeugfehler. Bei Timeout oder
@@ -48,11 +48,28 @@ automatisch erneut ausführen. Das Deaktivieren der App-Freigabe verhindert
 weitere autorisierte Aufträge, auch wenn der Host noch gestartet ist.
 Kein Remote-Proxy und keine automatische Aktivierung von Play/Pause.
 
+## Optional: Navigation und Lautstärke
+
+Unabhängige Host-Startargumente, standardmässig aus:
+- `--allow-navigation`: `redbit_next`, `redbit_previous` (je `{}`)
+  und `redbit_seek` (z. B. `{"seconds":12.5}`).
+- `--allow-volume`: `redbit_set_volume` (z. B. `{"percent":40}`).
+  Nur App-Lautstärke, nicht Systemlautstärke.
+
+Auch hier muss die lokale Transportfreigabe in RED Bit aktiv sein. Parameter
+werden vor dem Kurzbefehlsaufruf gegen den bestehenden Vertrag geprüft.
+Keine zusätzlichen Felder, Strings als Zahlen oder nicht endliche Werte.
+Seek-Dauer, Party-Sperren und Mix-Zustand prüft weiterhin die App.
+Next/Previous und Seek sind bewusst nicht als idempotent annotiert:
+ein erneuter Aufruf kann einen anderen Titel treffen. Keine Wiederholung
+bei Timeout; die Quittung bestätigt keinen hörbaren Erfolg. Die vier
+Audio-/Shuffle-Einstellungswerkzeuge bleiben im MCP-Adapter gesperrt.
+
 ## Tests
 
 `python3 -m unittest discover -s scripts/redbit-mcp -v`
 
-Elf lokale Protokoll-/Privacy-/Bridge-Tests (simuliertes shortcuts-Programm),
+16 lokale Protokoll-/Privacy-/Bridge-Tests (simuliertes shortcuts-Programm),
 keine echte macOS-/iPhone-Geräteabnahme. Die tatsächliche App-Antwort, Apple-
 Authentifizierung und der konkrete Host müssen noch gemeinsam erprobt werden.
 Die macOS-Brücke ist kein iOS- oder Windows-Dienst und kein ChatGPT-Cloud-Connector.
