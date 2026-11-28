@@ -692,7 +692,9 @@ extension PlaybackController {
             $0.source.hasPrefix("yt:") && !$0.id.hasPrefix("saavn:")
         }
         let prefs = ResolvePrefs.current()
-        let fingerprint = "\(prefs.maxKbps)|metered=\(metered)|" + prefetch.map(\.id).joined(separator: "|")
+        // Dieselbe Queue kann nach einer neuen Auswahl erneut erscheinen.
+        // Alte abgebrochene Tasks dürfen dann keine Vorwärmung blockieren.
+        let fingerprint = "\(generation)|\(NetworkQuality.shared.pathChanges)|\(prefs.maxKbps)|metered=\(metered)|" + prefetch.map(\.id).joined(separator: "|")
         guard fingerprint != urlPrefetchFingerprint else { return }
         urlPrefetchFingerprint = fingerprint
         urlPrefetchTask?.cancel()
@@ -705,7 +707,7 @@ extension PlaybackController {
                 let stillQueued = await MainActor.run { [weak self] in
                     guard let self else { return false }
                     guard self.playGeneration == generation,
-                          self.queue.contains(where: { $0.id == id }) else { return false }
+                          self.queue.dropFirst(self.playingIndex + 1).contains(where: { $0.id == id }) else { return false }
                     // A path change can happen while this sequential read-ahead
                     // is running. Keep the first queued item, but stop before
                     // resolving additional speculative URLs on a metered path.
@@ -714,6 +716,7 @@ extension PlaybackController {
                 guard stillQueued else { continue }
                 let videoId = String(entry.source.dropFirst(3))
                 if await StreamFileCache.shared.path(for: videoId, allowQualityFallback: true) != nil { continue }
+                guard !Task.isCancelled else { return }
                 _ = try? await InnertubeStreamResolver.shared.resolve(videoId: videoId, maxKbps: prefs.maxKbps, background: true)
             }
         }

@@ -51,3 +51,9 @@ Jeder Bereich bekommt Quellnachweis, Tests, SHA, Build/Plattform, Status und bek
 ## Folgebranch: Audio-Kontinuität
 
 Der Branch `feat/red-bit-audio-continuity-20261128` basiert auf PR #59 (bd15a0f); der laufende Gerätebau bleibt unberührt. Erster Umfang: natürliches Ende der lokalen Queue bei aktivem Autoplay wartet höchstens 20 Sekunden auf verspätete Empfehlungen. Auswahl-, Queue- und Kontokontext sowie Pause/Repeat/Party begrenzen den Wiederanlauf. Ohne Netzwerk oder Seed bleibt das normale Ende erhalten. Sieben neue Policy-Prüfungen in der bestehenden Queue-Suite; echte Wiedergabe und Gerätebau sind nicht bestätigt. Weitere Audio-, Design- und Ökosystem-Punkte bleiben offen.
+
+### Cache und URL-Vorwärmung (Folge-PR)
+- Abgebrochene Quellen nicht als wachsend oder fertig registrieren; ältere Abschlüsse dürfen neuere laufende Quellen nicht überschreiben.
+- Offline-Liste blendet falsche Dateigrössen, ungültige Manifestversionen, unbekannte Codecs und Fehler-/Abbruchmarker aus; SHA-256 bleibt beim Öffnen verbindlich.
+- URL-Vorwärmung an Auswahlgeneration und Netzpfad koppeln, keine Auflösung nach Task-Abbruch, nur noch kommende Queue-Einträge. Bestehendes Limit 1 (Mobilfunk) / 3 (WLAN) bleibt.
+- Drei neue Download-/Cache-Gegenproben; vollständige Apple-CI und Geräteabnahme stehen aus.
