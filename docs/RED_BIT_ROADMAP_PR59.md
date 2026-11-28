@@ -62,3 +62,8 @@ Der Branch `feat/red-bit-audio-continuity-20261128` basiert auf PR #59 (bd15a0f)
 - Eine erfolgreich vorbereitete Quelle wird bei einem späteren Planungs-/Enginefehler nicht mehr als unspielbar markiert. Sicherheitsüberblendung oder normaler EOS-Load bleibt möglich.
 - Zusätzliche Planung startet/erneuert sich nur innerhalb eines Budgets von 12 Versuchen und 24 Sekunden, mit mindestens Fade + 8 Sekunden Vorlauf bei bekannter Länge. Bei unbekannter Länge maximal eine Runde. Prüfungen auch zwischen Analysephasen und vor Übergabe an die Engine. Bereits laufende native Analyse kann das Budget überschreiten; keine harte Unterbrechung versprochen.
 - Neun neue Policy-Gegenproben; keine Änderung der eigentlichen DJ-Analysemodelle oder DSP-Effekte. Vollständige CI und Hörtest ausstehend.
+
+### Schnellere IPA-Builds
+- Messung PR #59: Kotlin 650 s, Rust 494 s; beide Framework-Misses trotz allgemeinem Actions-Cache.
+- Separate quell-/toolchainbasierte Cache-Schlüssel, sofortiges Speichern erfolgreicher Frameworks, Cache-Diagnose und Zeiten in der Build-Zusammenfassung. Kein Parallelbau erzwungen (CPU/RAM-Konkurrenz noch nicht gemessen).
+- Fixture-Prüfungen für reine Swift-Änderungen, unabhängige native Änderungen, lokale Buildkonfiguration und beschädigtes Archiv erweitert. Tatsächlicher macOS-Warmbau steht aus; keine neue IPA aus diesem Folge-PR gestartet.
