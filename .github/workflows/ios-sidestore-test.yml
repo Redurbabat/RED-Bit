@@ -32,7 +32,9 @@ concurrency:
 
 jobs:
   ipa:
-    if: github.event_name == 'workflow_dispatch' || (vars.BBT_IOS_TEST_AUTO_BUILD == 'true' && vars.BBT_IOS_TEST_BRANCH != '' && github.ref_name == vars.BBT_IOS_TEST_BRANCH)
+    # Ein explizit markierter Testcommit auf dem Diagnosebranch darf einmal bauen.
+    # Der globale Auto-Build-Schalter bleibt verbindlich.
+    if: github.event_name == 'workflow_dispatch' || (vars.BBT_IOS_TEST_AUTO_BUILD == 'true' && ((vars.BBT_IOS_TEST_BRANCH != '' && github.ref_name == vars.BBT_IOS_TEST_BRANCH) || (github.ref_name == 'feat/red-bit-audio-continuity-20261128' && contains(github.event.head_commit.message, '[iphone-test]'))))
     runs-on: macos-26
     timeout-minutes: 120
     env:

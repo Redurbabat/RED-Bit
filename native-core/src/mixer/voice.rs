@@ -39,6 +39,8 @@ pub(super) struct Voice {
     pub(super) info: TrackInfo,
     pub(super) finished: bool,
     pub(super) decode_error: Option<String>,
+    // Bleibt bis zum Ende der Stimme erhalten, auch nachdem das Fehlerereignis abgeholt wurde.
+    pub(super) decode_failed: bool,
     /// Device-domain frames emitted (post-resample).
     pub(super) emitted_dev_frames: u64,
     /// Rate the post-decode DSP is currently running at; changes on a route
@@ -215,6 +217,7 @@ impl Voice {
             decoder,
             finished: false,
             decode_error: None,
+            decode_failed: false,
             emitted_dev_frames: 0,
             device_rate,
             pending_dev: Vec::new(),
@@ -522,6 +525,8 @@ impl Voice {
         self.pending_dev_cursor = 0;
         self.silent_dev_frames = 0;
         self.finished = false;
+        self.decode_failed = false;
+        self.decode_error = None;
     }
 
     pub(super) fn position_seconds(&self) -> f64 {
@@ -801,6 +806,7 @@ impl Voice {
                 Vec::new()
             } else {
                 self.decoder.read_stereo(frames).unwrap_or_else(|e| {
+                    self.decode_failed = true;
                     self.decode_error = Some(format!("decode failed: {e}"));
                     Vec::new()
                 })
@@ -946,6 +952,8 @@ impl Voice {
             }
             Err(error) => {
                 log::warn!("bit-perfect source read failed: {error}");
+                self.decode_failed = true;
+                self.decode_error = Some(format!("bit-perfect source read failed: {error}"));
                 self.finished = true;
             }
         }

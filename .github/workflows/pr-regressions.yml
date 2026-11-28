@@ -2,7 +2,7 @@ name: BBT-Bit PR regression checks
 
 on:
   pull_request:
-    branches: [main, 'review-only/**']
+    branches: [main, 'review-only/**', 'codex/red-bit-integration-motion-20261108']
   push:
     branches: [main, 'codex/longterm-architecture-20261104']
 

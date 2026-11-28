@@ -149,6 +149,16 @@ extension PlaybackController {
                 confirmedFailure: true
             ) {
                 stopAfterFailedRecovery(source: source, confirmedFailure: true)
+                // Lokale Dateien können nicht frisch aus dem Netz aufgelöst werden.
+                // Ein Decoderfehler muss trotzdem sichtbar sein und darf nicht weiterschalten.
+                if state != .paused, let entry = current, engineLoadedId == entry.id,
+                   loadedSourcePath == source {
+                    let at = playbackPosition
+                    pausePlayback(releaseAudioSession: true)
+                    engineLoadedId = nil
+                    restoredStart = (entry.id, max(0, at - 0.25))
+                    reportPlaybackFailure(.engine, message: "Audio decoding failed. Press Play to retry.")
+                }
             }
             return
         }

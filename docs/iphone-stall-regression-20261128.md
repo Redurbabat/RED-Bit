@@ -14,3 +14,7 @@ Version 1.0.4 (13), Revision bd15a0fee37a; 390 Messpunkte, 14/33 Prüfbereiche b
 ## Abnahme
 
 Reine Swift-Regression: scripts/test-playback-progress.swift. Zusätzlich bestehende Native-End-, Repeat-, Autoplay-, Simulator- und Stream-Recovery-Checks ausführen. Auf echtem iPhone 60 Minuten mit mehreren Titeln, AutoMix aus/ein, Repeat aus/ein, gesperrtem Bildschirm, Netzwechsel und Bluetooth prüfen. Export muss Fehler bei Stillstand zeigen und darf unverwendete Funktionen nicht als bestanden ausgeben. Der native Grund für die fehlende EOS-Meldung ist mit den bisherigen Daten nicht bewiesen; die Hardware-Abnahme steht aus.
+
+## Native Nacharbeit
+
+Decoderfehler bleiben bis zum Abschluss der Stimme erhalten, auch bei Bit-Perfect. Ohne aktive Überblendung wird bei Decoderfehler nicht zum vorbereiteten Titel gesprungen. Nach belegbar leerer Ausgabe meldet der Mixer den tatsächlichen Endstand ohne erneuten Abzug der DSP-Latenz und genau ein Ende. Neue Rust-Regressionen decken Restpuffer, doppelten Abschluss und fehlerhafte Decoder ab. Der Livetest-Monitor läuft nun auch in der Simulator-CI. Für den ausdrücklich angeforderten IPA-Test wurde ein auf diesen Branch und einen Commitmarker beschränkter Opt-in unter dem bestehenden globalen Auto-Build-Schalter ergänzt; keine Signierung oder Veröffentlichung.

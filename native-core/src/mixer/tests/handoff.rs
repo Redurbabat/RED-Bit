@@ -1166,3 +1166,58 @@ fn retiring_the_stretch_drains_rather_than_drops() {
         "the stage should be gone after the drain"
     );
 }
+
+
+#[test]
+fn drained_end_reports_once_and_removes_playhead_processing_delay() {
+    let path = std::env::temp_dir().join(format!("redbit-drained-end-{}.wav", std::process::id()));
+    test_wav(&path, 2.0, 440.0);
+    let mut state = armed_test_state(&path, &path, Phase::Arming);
+    state.incoming = None;
+    state.transition = None;
+    let events = Arc::new(RecordedEvents::default());
+    state.events = events.clone();
+    let voice = state.current.as_mut().unwrap();
+    voice.decoder.seek_seconds(1.0).unwrap();
+    voice.finished = true;
+    voice.pending_dev.clear();
+    voice.pending_dev_cursor = 0;
+    let expected = (voice.emitted_position_seconds() * 1000.0) as u64;
+    state.position_ms.store(expected.saturating_sub(12), Ordering::Relaxed);
+    let (mut ring, mut consumer) = rtrb::RingBuffer::new(4096);
+    ring.push(0.1).unwrap();
+    ring.push(0.1).unwrap();
+    state.buffered_frames.store(1, Ordering::Relaxed);
+    super::super::render::render_available(&mut state, &mut ring);
+    assert!(events.ended.lock().unwrap().is_empty());
+    drain_available_frames(&mut consumer, &state.buffered_frames);
+    super::super::render::render_available(&mut state, &mut ring);
+    assert_eq!(*events.ended.lock().unwrap(), vec!["natural"]);
+    assert_eq!(state.position_ms.load(Ordering::Relaxed), expected);
+    state.finish_drained_voice();
+    assert_eq!(*events.ended.lock().unwrap(), vec!["natural"]);
+    drop(state);
+    std::fs::remove_file(path).unwrap();
+}
+
+#[test]
+fn failed_decoder_end_is_not_a_successful_queue_handoff() {
+    let path = std::env::temp_dir().join(format!("redbit-failed-end-{}.wav", std::process::id()));
+    test_wav(&path, 2.0, 440.0);
+    let mut state = armed_test_state(&path, &path, Phase::Arming);
+    state.transition = None;
+    let events = Arc::new(RecordedEvents::default());
+    state.events = events.clone();
+    let voice = state.current.as_mut().unwrap();
+    voice.finished = true;
+    voice.decode_failed = true;
+    voice.pending_dev.clear();
+    voice.pending_dev_cursor = 0;
+    let (mut ring, _) = rtrb::RingBuffer::new(4096);
+    super::super::render::render_available(&mut state, &mut ring);
+    assert_eq!(*events.ended.lock().unwrap(), vec!["error"]);
+    assert!(events.handoffs.lock().unwrap().is_empty());
+    assert!(!state.playing);
+    drop(state);
+    std::fs::remove_file(path).unwrap();
+}
