@@ -12,18 +12,34 @@ NAMES = ("redbit_read_status", "redbit_read_queue")
 TRANSPORT_NAMES = ("redbit_play", "redbit_pause")
 NAVIGATION_NAMES = ("redbit_next", "redbit_previous", "redbit_seek")
 VOLUME_NAMES = ("redbit_set_volume",)
-WRITE_NAMES = TRANSPORT_NAMES + NAVIGATION_NAMES + VOLUME_NAMES
+PREFERENCE_NAMES = ("redbit_set_automix", "redbit_set_equalizer", "redbit_set_quality", "redbit_set_shuffle")
+WRITE_NAMES = TRANSPORT_NAMES + NAVIGATION_NAMES + VOLUME_NAMES + PREFERENCE_NAMES
 ARGUMENTS = {
     "redbit_seek": {"seconds": {"type": "number", "minimum": 0}},
     "redbit_set_volume": {"percent": {"type": "number", "minimum": 0, "maximum": 100}},
+    "redbit_set_automix": {"enabled": {"type": "boolean"}},
+    "redbit_set_equalizer": {"enabled": {"type": "boolean"}},
+    "redbit_set_quality": {
+        "quality": {"type": "string", "enum": ["LOW", "MEDIUM", "HIGH", "LOSSLESS"]},
+        "metered": {"type": "boolean"},
+    },
+    "redbit_set_shuffle": {"enabled": {"type": "boolean"}},
 }
-COMMANDS = {"redbit_set_volume": "setVolume"}
+COMMANDS = {
+    "redbit_set_volume": "setVolume",
+    "redbit_set_automix": "setAutomix",
+    "redbit_set_equalizer": "setEqualizer",
+    "redbit_set_quality": "setStreamQuality",
+    "redbit_set_shuffle": "setShuffle",
+}
 
 
-def allowed_names(allow_play_pause=False, allow_navigation=False, allow_volume=False):
+def allowed_names(allow_play_pause=False, allow_navigation=False,
+                  allow_volume=False, allow_preferences=False):
     return (NAMES + (TRANSPORT_NAMES if allow_play_pause else ())
             + (NAVIGATION_NAMES if allow_navigation else ())
-            + (VOLUME_NAMES if allow_volume else ()))
+            + (VOLUME_NAMES if allow_volume else ())
+            + (PREFERENCE_NAMES if allow_preferences else ()))
 
 
 def input_schema(name):
@@ -37,11 +53,21 @@ def validate_arguments(name, args):
     if type(args) is not dict or args.keys() != schema.keys():
         raise ValueError("invalid argument fields")
     for key, field in schema.items():
-        n = args[key]
-        if type(n) not in (int, float) or not math.isfinite(n) or n < field["minimum"]:
-            raise ValueError("invalid numeric argument")
-        if "maximum" in field and n > field["maximum"]:
-            raise ValueError("argument above maximum")
+        value = args[key]
+        kind = field["type"]
+        if kind == "number":
+            if type(value) not in (int, float) or not math.isfinite(value):
+                raise ValueError("invalid number")
+            if value < field["minimum"] or ("maximum" in field and value > field["maximum"]):
+                raise ValueError("out-of-range number")
+        elif kind == "boolean":
+            if type(value) is not bool:
+                raise ValueError("invalid boolean")
+        elif kind == "string":
+            if type(value) is not str or value not in field["enum"]:
+                raise ValueError("invalid enum")
+        else:
+            raise ValueError("unknown field type")
     return args
 
 MAX_LINE = 16384
@@ -63,18 +89,19 @@ def strict_json(text):
     return json.loads(text, object_pairs_hook=pairs, parse_constant=constant)
 
 
-def catalog(path, allow_play_pause=False, allow_navigation=False, allow_volume=False):
+def catalog(path, allow_play_pause=False, allow_navigation=False,
+            allow_volume=False, allow_preferences=False):
     data = strict_json(path.read_text(encoding="utf-8"))
     if data.get("version") != 1 or data.get("app") != "red-bit" or data.get("remoteAvailable") is not False:
         raise ValueError("unexpected tool contract")
     tools = []
-    for name in allowed_names(allow_play_pause, allow_navigation, allow_volume):
+    for name in allowed_names(allow_play_pause, allow_navigation, allow_volume, allow_preferences):
         read_only = name in NAMES
         matches = [t for t in data["tools"] if t["name"] == name]
         if len(matches) != 1:
             raise ValueError("missing tool")
         t = matches[0]
-        if t["scope"] != ("status" if read_only else "transport") or t["readOnly"] is not read_only or t["inputSchema"] != input_schema(name):
+        if t["scope"] != ("status" if read_only else ("preferences" if name in PREFERENCE_NAMES else "transport")) or t["readOnly"] is not read_only or t["inputSchema"] != input_schema(name):
             raise ValueError("unexpected tool")
         tools.append({"name": name, "description": t["description"], "inputSchema": t["inputSchema"],
                       "annotations": {"readOnlyHint": read_only, "destructiveHint": False,
@@ -107,26 +134,52 @@ def validate_reply(name, value):
         if value["upcoming"] > value["total"] or value["automaticUpcoming"] + value["manualUpcoming"] != value["upcoming"]:
             raise ValueError("invalid queue counts")
     elif name in WRITE_NAMES:
-        required = {"version", "command", "decision", "status"}
-        optional = {"volumePercent"} if name in VOLUME_NAMES else set()
+        required = {"version", "command", "decision"}
+        if name not in PREFERENCE_NAMES or name == "redbit_set_automix":
+            required.add("status")
+        optional = {
+            "redbit_set_volume": {"volumePercent"},
+            "redbit_set_automix": {"automixEnabled"},
+            "redbit_set_equalizer": {"equalizerEnabled"},
+            "redbit_set_quality": {"requestedQuality", "metered"},
+            "redbit_set_shuffle": {"shuffleEnabled"},
+        }.get(name, set())
         if not required <= value.keys() <= required | optional:
-            raise ValueError("invalid transport receipt")
+            raise ValueError("invalid command receipt")
         decisions = ("requested", "unchanged", "locked", "unavailable")
         if name in ARGUMENTS:
             decisions += ("invalidValue",)
         if value["command"] != COMMANDS.get(name, name.removeprefix("redbit_")) or value["decision"] not in decisions:
-            raise ValueError("invalid transport decision")
-        validate_reply(NAMES[0], value["status"])
+            raise ValueError("invalid command decision")
+        if "status" in required:
+            validate_reply(NAMES[0], value["status"])
         if "volumePercent" in value:
             validate_arguments("redbit_set_volume", {"percent": value["volumePercent"]})
+        for flag in ("automixEnabled", "equalizerEnabled", "shuffleEnabled", "metered"):
+            if flag in value and type(value[flag]) is not bool:
+                raise ValueError("invalid command flag")
+        if "requestedQuality" in value:
+            q = value["requestedQuality"]
+            if type(q) is not str or q not in ARGUMENTS["redbit_set_quality"]["quality"]["enum"]:
+                raise ValueError("invalid quality receipt")
+        if name in PREFERENCE_NAMES and value["decision"] in ("requested", "unchanged"):
+            expected = {
+                "redbit_set_equalizer": {"equalizerEnabled"},
+                "redbit_set_quality": {"requestedQuality", "metered"},
+                "redbit_set_shuffle": {"shuffleEnabled"},
+                "redbit_set_automix": {"automixEnabled"},
+            }[name]
+            if not expected <= value.keys():
+                raise ValueError("missing preference value")
     else:
         raise ValueError("unknown tool")
     return value
 
 
 class ShortcutRunner:
-    def __init__(self, shortcut, allow_play_pause=False, allow_navigation=False, allow_volume=False):
-        self.allowed = allowed_names(allow_play_pause, allow_navigation, allow_volume)
+    def __init__(self, shortcut, allow_play_pause=False, allow_navigation=False,
+                 allow_volume=False, allow_preferences=False):
+        self.allowed = allowed_names(allow_play_pause, allow_navigation, allow_volume, allow_preferences)
         if not shortcut.strip() or shortcut.startswith("-") or len(shortcut) > 200:
             raise ValueError("invalid shortcut name")
         self.shortcut = shortcut
@@ -149,8 +202,9 @@ class ShortcutRunner:
 
 
 class Server:
-    def __init__(self, tools, runner, allow_play_pause=False, allow_navigation=False, allow_volume=False):
-        self.allowed = allowed_names(allow_play_pause, allow_navigation, allow_volume)
+    def __init__(self, tools, runner, allow_play_pause=False, allow_navigation=False,
+                 allow_volume=False, allow_preferences=False):
+        self.allowed = allowed_names(allow_play_pause, allow_navigation, allow_volume, allow_preferences)
         if tuple(t["name"] for t in tools) != self.allowed:
             raise ValueError("catalog does not match local permissions")
         self.tools = tools
@@ -176,7 +230,7 @@ class Server:
                 return self.error(ident, -32602, "Invalid protocol version")
             self.phase = "initializing"
             result = {"protocolVersion": PROTOCOL, "capabilities": {"tools": {}},
-                      "serverInfo": {"name": "red-bit-local", "version": "0.3.0"}}
+                      "serverInfo": {"name": "red-bit-local", "version": "0.4.0"}}
         elif method == "ping":
             result = {}
         elif self.phase != "ready":
@@ -234,11 +288,13 @@ def main():
                         help="Opt in to Next/Previous/Seek; separate RED Bit transport permission required")
     parser.add_argument("--allow-volume", action="store_true",
                         help="Opt in to app volume; separate RED Bit transport permission required")
+    parser.add_argument("--allow-preferences", action="store_true",
+                        help="Opt in to Automix, equalizer, streaming quality and shuffle; app permission required")
     args = parser.parse_args()
     if sys.platform != "darwin":
         parser.error("The Apple Shortcuts bridge requires macOS")
     path = Path(__file__).resolve().parents[2] / "docs/red-bit-tool-contract.json"
-    permissions = (args.allow_play_pause, args.allow_navigation, args.allow_volume)
+    permissions = (args.allow_play_pause, args.allow_navigation, args.allow_volume, args.allow_preferences)
     serve(Server(catalog(path, *permissions),
                  ShortcutRunner(args.shortcut, *permissions),
                  *permissions), sys.stdin.buffer, sys.stdout.buffer)
