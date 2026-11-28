@@ -4,6 +4,29 @@ import CryptoKit
 @testable import RedNativeIdentity
 
 final class RedNativeIdentityTests: XCTestCase {
+    func testTransportClaimAndPermitStrictContract() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let session = now.addingTimeInterval(60)
+        let id = String(repeating: "a", count: 32)
+        func encode(_ fields: [String: Any]) throws -> Data { try JSONSerialization.data(withJSONObject: fields) }
+        func stamp(_ seconds: Double) -> Int64 { Int64((now.timeIntervalSince1970 + seconds) * 1000) }
+        for command in ["play", "pause", "next", "previous"] {
+            let fields: [String: Any] = ["id": id, "command": command, "expiresAt": stamp(25)]
+            let job = try XCTUnwrap(RedBitTransportJob.parseClaim(encode(["version": 1, "job": fields]), now: now, sessionExpiry: session))
+            XCTAssertEqual(job.command.rawValue, command)
+            let permit: [String: Any] = ["version": 1, "id": id, "command": command, "expiresAt": stamp(5)]
+            XCTAssertEqual(try RedBitTransportJob.parsePermit(encode(permit), job: job, now: now), now.addingTimeInterval(5))
+            for (key, value) in [("id", String(repeating: "b", count: 32) as Any), ("command", "delete" as Any), ("expiresAt", stamp(6) as Any), ("expiresAt", stamp(0) as Any), ("extra", true as Any)] {
+                var bad = permit; bad[key] = value
+                XCTAssertThrowsError(try RedBitTransportJob.parsePermit(encode(bad), job: job, now: now))
+            }
+            var invalid = fields; invalid["command"] = "seek"
+            XCTAssertThrowsError(try RedBitTransportJob.parseClaim(encode(["version": 1, "job": invalid]), now: now, sessionExpiry: session))
+            XCTAssertThrowsError(try RedBitTransportJob.parseClaim(encode(["version": 1, "job": fields]), now: now, sessionExpiry: now.addingTimeInterval(10)))
+        }
+        XCTAssertNil(try RedBitTransportJob.parseClaim(encode(["version": 1, "job": NSNull()]), now: now, sessionExpiry: session))
+    }
+
     func testProofAndPayload() throws {
         let a = RedNativeClient.makeProof(), b = RedNativeClient.makeProof()
         XCTAssertEqual(a.verifier.count, 43)
