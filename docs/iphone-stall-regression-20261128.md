@@ -9,7 +9,7 @@ Version 1.0.4 (13), Revision bd15a0fee37a; 390 Messpunkte, 14/33 Prüfbereiche b
 - Nach 24 s ohne Fortschritt erfolgt eine begrenzte Quellenreparatur oder sichtbare Pause mit Wiederanlaufpunkt. Der vorhandene Ausgabewatchdog bleibt aktiv.
 - Bericht enthält Puffer, Underruns, Rebuilds, Xruns und Stillstandszeit. Beobachtungsfenster wird bei Pause/Puffern/Wechsel/Seek/Ausführungslücke zurückgesetzt.
 - 60 Minuten passive Beobachtung und bis zu 3600 Messpunkte; iOS-Suspendierung bleibt eine Einschränkung.
-- Modellintegrität ist kein Inferenznachweis. AutoMix mit zwei Titeln, tatsächlichem Übergang und Planquelle ([beat:coreml], [beat:rten], [vocals:open_unmix]) getrennt prüfen.
+- Drei zusätzliche Prüfbereiche erfassen nur neu gemeldete Modell-Planquellen getrennt von Dateiintegrität und Runtime-Status. Die Planmeldung allein ist kein unabhängiger Inferenznachweis. AutoMix mit zwei Titeln, tatsächlichem Übergang und Planquelle ([beat:coreml], [beat:rten], [vocals:open_unmix]) getrennt prüfen.
 
 ## Abnahme
 

@@ -32,8 +32,8 @@ extension PlaybackController {
             deferredNetworkRecovery = nil
         }
         let now = ProcessInfo.processInfo.systemUptime
-        let at = playbackPosition
         let watching = state == .playing && !smartMixInProgress && dolbyRenderer == nil && engineLoadedId != nil
+        let at = watching ? playbackPosition : 0
         let stall = playbackStallTracker.observe(trackID: current.map { "\(playGeneration):\($0.id)" },
             position: at, at: now, playing: watching, buffering: state == .buffering)
         // Im Leerlauf weder Ausgabestatus noch Positionsdaten des Mixers
@@ -54,6 +54,7 @@ extension PlaybackController {
             debugLog.record("watchdog: near-end stall; verifying natural end position=\(at) duration=\(duration)", about: current?.id)
             // Der gemeinsame EOS-Pfad prüft noch ausstehende Decoderfehler und
             // behandelt Repeat, Sleep, Queue und Autoplay. Kein doppelter Sprung.
+            try? engine.pause()
             handleTrackEnded(.natural, source: source)
             return
         }

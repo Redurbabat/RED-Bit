@@ -240,7 +240,7 @@ final class AutomixLiveTestMonitor {
         do { _ = try saveReport() } catch { }
     }
 
-    private func record(controller: PlaybackController) {
+    private func record(controller: PlaybackController, monotonicNow: TimeInterval = ProcessInfo.processInfo.systemUptime) {
         guard running, let startedAt, samples.count < 3600 else { return }
         sampling = true
         defer { sampling = false; if needsCheckpoint { needsCheckpoint = false; checkpoint() } }
@@ -248,12 +248,12 @@ final class AutomixLiveTestMonitor {
         let position = controller.playbackPosition
         let health = controller.engine.outputHealth()
         let stalledSeconds = stallTracker.observe(trackID: currentID.map { "\(controller.playGeneration):\($0)" },
-            position: position, at: ProcessInfo.processInfo.systemUptime,
+            position: position, at: monotonicNow,
             playing: controller.isPlaying, buffering: controller.isBuffering)
         if stalledSeconds == 0 { reportedStall = false }
         let progressed = progressTracker.observe(
             trackID: currentID, position: position,
-            at: ProcessInfo.processInfo.systemUptime,
+            at: monotonicNow,
             playing: controller.isPlaying, buffering: controller.isBuffering
         )
         progressObserved = progressObserved || progressed
@@ -266,6 +266,9 @@ final class AutomixLiveTestMonitor {
             onnxObserved = onnxObserved || source.contains("[beat:rten]")
             coreMLObserved = coreMLObserved || source.contains("[beat:coreml]")
             vocalsObserved = vocalsObserved || source.contains("[vocals:open_unmix]")
+            if source.contains("[beat:rten]") { note(.beatPlan, .success, .modelPlanObserved) }
+            if source.contains("[beat:coreml]") { note(.coreMLPlan, .success, .modelPlanObserved) }
+            if source.contains("[vocals:open_unmix]") { note(.vocalPlan, .success, .modelPlanObserved) }
         }
         transitionsObserved = Int(
             controller.automixTransitionRevision >= baseTransition

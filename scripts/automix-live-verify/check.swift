@@ -5,7 +5,17 @@
     struct Output { var started: Bool }
     struct Readout { var loaded: Bool }
     var current: Entry? = Entry(id: "private-fixture-title")
+    struct Health {
+        var bufferedFrames: UInt64 = 0
+        var callbackUnderruns: UInt64 = 0
+        var outputRebuilds: UInt64 = 0
+        var outputXruns: UInt64 = 0
+    }
+    struct Engine { func outputHealth() -> Health { Health() } }
+    let engine = Engine()
+    var playGeneration: UInt64 = 0
     var position = 10.0
+    var playbackPosition: Double { position }
     var duration = 200.0
     var isPlaying = true
     var isBuffering = false
@@ -137,6 +147,26 @@ extension AutomixLiveTestMonitor {
         AppTestEvents.emit(.albumPreview, .success, .responseReceived)
         precondition(monitor.result(.albumPreview).status == .failed)
         precondition(monitor.result(.albumPreview).lastFailure == .requestFailed)
+        // Der reale Monitor muss einen langen Stillstand trotz früherem Erfolg
+        // als Fehler archivieren und Modellintegrität nicht als Plan verbuchen.
+        precondition(monitor.result(.playbackProgress).status == .passed)
+        precondition(monitor.result(.coreMLPlan).status == .notObserved)
+        controller.automixPlanRevision += 1
+        controller.analysisSources = "[beat:coreml]"
+        controller.position = 373.449; controller.duration = 373.461
+        monitor.applicationBackgroundChanged(true)
+        let start = ProcessInfo.processInfo.systemUptime + 1
+        for second in 0...39 { monitor.record(controller: controller, monotonicNow: start + Double(second)) }
+        precondition(monitor.result(.playbackProgress).status == .failed)
+        precondition(monitor.result(.playbackProgress).lastFailure == .nearEndStalled)
+        precondition(monitor.result(.backgroundPlayback).status == .failed)
+        precondition(monitor.result(.coreMLPlan).status == .passed)
+        precondition(monitor.result(.beatPlan).status == .notObserved)
+        precondition(monitor.samples.last?.stalledSeconds == 39)
+        controller.position = 374
+        monitor.record(controller: controller, monotonicNow: start + 40)
+        precondition(monitor.result(.playbackProgress).status == .failed)
+        monitor.applicationBackgroundChanged(false)
         let oldProbe = AppTestEvents.begin(.search)
         monitor.stop()
         let savedID = monitor.sessionID
@@ -197,8 +227,8 @@ extension AutomixLiveTestMonitor {
         precondition(blocked.sessionID == blockedID && !blocked.running)
         let bounded = AutomixLiveTestMonitor(archive: archive)
         bounded.start(controller: controller)
-        for _ in 0..<1900 { bounded.record(controller: controller) }
-        precondition(bounded.samples.count == 1800)
+        for _ in 0..<3700 { bounded.record(controller: controller) }
+        precondition(bounded.samples.count == 3600)
         bounded.stop()
         let boundedData = try Data(contentsOf: archive.fileURL(bounded.sessionID))
         precondition(boundedData.count < 8 * 1024 * 1024)
@@ -215,7 +245,7 @@ extension AutomixLiveTestMonitor {
         precondition(legacyRead == legacyData)
         precondition(archive.reports.first { $0.id == legacyID }?.automaticTotal == nil)
         print("BESTANDEN: Produktionsmonitor, JSON v5, Fehlertrennung, Modus, Engine-Revision und Datenschutz")
-        print("BESTANDEN: Automatische Nachweise ohne Bewertung, Fehler bleiben sichtbar, alte Ereignisse verworfen, v4 unverändert lesbar, Archiv, Abbruch, Schreibfehler und 1800-Punkte-Grenze")
+        print("BESTANDEN: Automatische Nachweise ohne Bewertung, Fehler bleiben sichtbar, alte Ereignisse verworfen, v4 unverändert lesbar, Archiv, Abbruch, Schreibfehler und 3600-Punkte-Grenze")
     }
 }
 

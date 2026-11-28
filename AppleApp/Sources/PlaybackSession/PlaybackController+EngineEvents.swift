@@ -29,6 +29,7 @@ extension PlaybackController {
             || (state == .playing && newState == .paused) { return }
 #endif
         if state == .paused && newState == .stopped { return }
+        if state == .stopped, engineLoadedId == nil, newState == .paused || newState == .playing { return }
         state = newState
         if let current {
             nowPlaying.update(
@@ -207,7 +208,6 @@ extension PlaybackController {
 
     func finishNaturalQueueEnd() {
         state = .stopped
-        try? engine.pause()
         position = 0
         nowPlaying.updateRate(0.0, position: 0)
         nowPlaying.stop()
