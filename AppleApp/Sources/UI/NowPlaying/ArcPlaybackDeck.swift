@@ -63,7 +63,7 @@ struct ArcPlaybackDeck<More: View>: View {
                     .position(controlPoint(1, geometry))
                     control("quote.bubble", label: "Lyrics", action: onLyrics)
                         .position(controlPoint(2, geometry))
-                    control(controller.isPlaying ? "pause.fill" : "play.fill", label: controller.isPlaying ? "Pause" : "Play",
+                    control(controller.isPlaying || controller.isBuffering ? "pause.fill" : "play.fill", label: controller.isPlaying || controller.isBuffering ? "Pause" : "Play",
                             enabled: controller.current != nil || controller.isBuffering, changesPlayback: true) {
                         controller.togglePlayPause()
                     }

@@ -73,3 +73,8 @@ Der Branch `feat/red-bit-audio-continuity-20261128` basiert auf PR #59 (bd15a0f)
 - Offline-Sequencing betrachtet nur fertige Cachedateien. Pausierte, puffernde oder leere Auswahl setzt Watchdog-Beobachtung ohne wiederholte native Statusabfragen zurück; gestoppte geladene Quellen behalten Fehlerbehandlung.
 - Output-Watchdog prüft Transportgeneration und Mix vor und nach Session-Aktivierung; bestätigter Reparaturfehler führt zu Pause statt stiller Wiedergabeanzeige.
 - Sieben neue Policy-Prüfungen. Bereits laufende native Analyse kann noch auslaufen; Akkueinsparung und Audioverhalten müssen am Gerät gemessen werden.
+
+### Apple Player – konsistente Transport- und Direktaktionen
+- Mini-Player auf iPhone/iPad/Mac verwendet denselben Play/Pause-Ladezustand: Spinner mit Pause-Symbol und bedienbarem Knopf statt blockiertem Spinner. Auf iPad grössere Play/Pause-Trefffläche; bestehende native Glasfläche und Zoom bleiben unverändert.
+- Full Player und Arc-Variante benennen die Ladeaktion korrekt als Pause. Direktzugriffe auf Lyrics/Queue werden beim ersten Öffnen und in bestehenden Player-Ansichten verarbeitet, ohne die andere Anfrage stehenzulassen.
+- Zwei zusätzliche statische Quellprüfungen; keine neue visuelle Geräteabnahme oder vollständige Neugestaltung behauptet. Bestehende deutsche Schlüssel Pause/Wiedergabe/Queue/Lyrics wiederverwendet.

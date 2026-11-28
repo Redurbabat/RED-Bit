@@ -159,7 +159,7 @@ extension NowPlayingView {
             .accessibilityLabel("Previous track")
 
             Button {
-                Haptics.play(controller.isPlaying ? .pause : .resume)
+                Haptics.play(controller.isPlaying || controller.isBuffering ? .pause : .resume)
                 controller.togglePlayPause()
             } label: {
                 ZStack {
@@ -168,6 +168,9 @@ extension NowPlayingView {
                             .controlSize(.regular)
                             .tint(.white)
                             .frame(width: 38, height: 38)
+                            .accessibilityHidden(true)
+                        Image(systemName: "pause.fill")
+                            .font(.system(size: 17, weight: .semibold))
                     } else {
                         Image(controller.isPlaying ? .bchTransportPause : .bchTransportPlay)
                             .resizable()
@@ -181,8 +184,8 @@ extension NowPlayingView {
             }
             .buttonStyle(.plain)
             .disabled(controller.current == nil && !controller.isBuffering)
-            .help(controller.isPlaying ? "Pause" : "Play")
-            .accessibilityLabel(controller.isBuffering ? "Buffering" : (controller.isPlaying ? "Pause" : "Play"))
+            .help(controller.isPlaying || controller.isBuffering ? "Pause" : "Play")
+            .accessibilityLabel(controller.isPlaying || controller.isBuffering ? "Pause" : "Play")
             .accessibilityIdentifier("bbt.nowPlaying.play")
 
             Button {

@@ -107,13 +107,13 @@ struct NowPlayingView: View {
             lyricsOffsetMs = LyricsOffsetBridge.offsetMs()
         }
         .onAppear { AppTestEvents.emit(.playerNavigation, .success, .screenDisplayed) }
-        .onChange(of: appModel.queueRevealRequested) { _, requested in
+        .onChange(of: appModel.queueRevealRequested, initial: true) { _, requested in
             if requested {
                 withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) { pane = .queue }
                 appModel.queueRevealRequested = false
             }
         }
-        .onChange(of: appModel.lyricsRevealRequested) { _, requested in
+        .onChange(of: appModel.lyricsRevealRequested, initial: true) { _, requested in
             if requested {
                 withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) { pane = .lyrics }
                 appModel.lyricsRevealRequested = false
