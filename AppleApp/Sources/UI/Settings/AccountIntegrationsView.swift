@@ -48,7 +48,20 @@ struct AccountIntegrationsView: View {
                 PushLink {
                     RedHomeIdentityView(
                         readStatus: { try AppIntentActions.playbackStatus() },
-                        canReadStatus: { RedBitLocalAutomationConsent.allows(.status) }
+                        canReadStatus: { RedBitLocalAutomationConsent.allows(.status) },
+                        canTransport: { RedBitLocalAutomationConsent.allows(.transport) },
+                        executeTransport: { command in
+                            let receipt: String
+                            switch command {
+                            case .play: receipt = try AppIntentActions.transport(.play)
+                            case .pause: receipt = try AppIntentActions.transport(.pause)
+                            case .next: receipt = try AppIntentActions.transport(.next)
+                            case .previous: receipt = try AppIntentActions.transport(.previous)
+                            }
+                            guard let fields = try JSONSerialization.jsonObject(with: Data(receipt.utf8)) as? [String: Any],
+                                  let decision = fields["decision"] as? String else { return .failed }
+                            return ["requested", "unchanged"].contains(decision) ? .executed : .failed
+                        }
                     )
                 } label: {
                     Label("RED Home Server", systemImage: "person.crop.circle.badge.checkmark")
