@@ -116,7 +116,7 @@ enum AppTestReportError: LocalizedError {
         else if header.version == 5, let observed = s.automaticObserved, let total = s.automaticTotal {
             validEvaluation = valid(s.automaticPassed, s.automaticFailed, total) && observed >= 0 && observed <= total
         } else { validEvaluation = false }
-        guard validEvaluation, (0...1800).contains(s.sampleCount) else {
+        guard validEvaluation, (0...3600).contains(s.sampleCount) else {
             throw AppTestReportError.invalidReport
         }
         return s

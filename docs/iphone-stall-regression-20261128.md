@@ -1,0 +1,30 @@
+# iPhone-Befund 28.11.2026 – Titelende und Diagnose
+
+Version 1.0.4 (13), Revision bd15a0fee37a; 390 Messpunkte, 14/33 Prüfbereiche bestanden, 19 unbeobachtet, Bericht unterbrochen. Ab Sekunde 366 steht der Fortschritt bei 373,449 s von 373,461 s bis Sekunde 405. Playing bleibt wahr, Buffering falsch. Automix war aus, kein Übergang/Modellplan belegt. Keine Originalberichte, Titel oder personenbezogenen Daten im Repository.
+
+## Änderungen und Prüfkriterien
+
+- 10 s durchgehender Stillstand wird in der Fortschrittsprüfung als Fehler protokolliert; spätere erfolgreiche Messungen löschen ihn nicht.
+- Nach 12 s und nur bei praktisch erreichtem Ende, leerem Puffer und belegbar vollständiger lokaler Quelle wird der gemeinsame EOS-Pfad verwendet. Decoderfehler haben Vorrang.
+- Nach 24 s ohne Fortschritt erfolgt eine begrenzte Quellenreparatur oder sichtbare Pause mit Wiederanlaufpunkt. Der vorhandene Ausgabewatchdog bleibt aktiv.
+- Bericht enthält Puffer, Underruns, Rebuilds, Xruns und Stillstandszeit. Beobachtungsfenster wird bei Pause/Puffern/Wechsel/Seek/Ausführungslücke zurückgesetzt.
+- 60 Minuten passive Beobachtung und bis zu 3600 Messpunkte; iOS-Suspendierung bleibt eine Einschränkung.
+- Drei zusätzliche Prüfbereiche erfassen nur neu gemeldete Modell-Planquellen getrennt von Dateiintegrität und Runtime-Status. Die Planmeldung allein ist kein unabhängiger Inferenznachweis. AutoMix mit zwei Titeln, tatsächlichem Übergang und Planquelle ([beat:coreml], [beat:rten], [vocals:open_unmix]) getrennt prüfen.
+
+## Abnahme
+
+Reine Swift-Regression: scripts/test-playback-progress.swift. Zusätzlich bestehende Native-End-, Repeat-, Autoplay-, Simulator- und Stream-Recovery-Checks ausführen. Auf echtem iPhone 60 Minuten mit mehreren Titeln, AutoMix aus/ein, Repeat aus/ein, gesperrtem Bildschirm, Netzwechsel und Bluetooth prüfen. Export muss Fehler bei Stillstand zeigen und darf unverwendete Funktionen nicht als bestanden ausgeben. Der native Grund für die fehlende EOS-Meldung ist mit den bisherigen Daten nicht bewiesen; die Hardware-Abnahme steht aus.
+
+## Native Nacharbeit
+
+Decoderfehler bleiben bis zum Abschluss der Stimme erhalten, auch bei Bit-Perfect. Ohne aktive Überblendung wird bei Decoderfehler nicht zum vorbereiteten Titel gesprungen. Nach belegbar leerer Ausgabe meldet der Mixer den tatsächlichen Endstand ohne erneuten Abzug der DSP-Latenz und genau ein Ende. Neue Rust-Regressionen decken Restpuffer, doppelten Abschluss und fehlerhafte Decoder ab. Der Livetest-Monitor läuft nun auch in der Simulator-CI. Für den ausdrücklich angeforderten IPA-Test wurde ein auf diesen Branch und einen Commitmarker beschränkter Opt-in unter dem bestehenden globalen Auto-Build-Schalter ergänzt; keine Signierung oder Veröffentlichung.
+
+### CI-Gegenprobe
+
+Der Lauf 46151406428 scheiterte in der Monitor-Gegenprobe beim exakten Double-Vergleich `stalledSeconds == 39`. Der Test verwendet jetzt eine feste monotone Testuhr, eine numerische Toleranz von einer Millisekunde sowie eine anschliessende Fortschrittsmessung, die den erhaltenen Fehlerstatus überprüft. Der Produktions-Watchdog bleibt unverändert; der erneute CI- und IPA-Lauf prüft den aktualisierten Stand.
+
+### Beatmatching-CI-Blocker (Lauf 46155196072)
+
+Die Swift-Recovery-/Tool-Contract-Gegenprobe, iPhone-XCUITest, macOS-Kompilierung und Kotlin-Tests waren erfolgreich. Native Rust: 336 bestanden, 1 fehlgeschlagen, 1 ignoriert. `a_beatmatched_blend_holds_the_grid_then_glides_home` erreichte nach 120 s nur 26,2 s der PCM-Aufnahme; die Onset-/BPM-Prüfungen wurden dadurch nicht erreicht. Ob reine Runner-Last oder ein Audioproblem vorlag, ist noch nicht nachgewiesen.
+
+Der Aufnahme-Harness verarbeitet nun vollständige Stereo-Blöcke mit einer atomaren Korrektur pro Block, verwendet 270 s als absolute Obergrenze und bricht bei 45 s ohne PCM-/Playhead-Fortschritt oder vorzeitig gestoppter Wiedergabe ab. Fehler enthalten Zustände, Handoffs, Ende, Puffer und Position. Die vollständigen 28 s PCM, <15 ms Beatdrift und <2 % Abweichung der Rückkehr zu 116 BPM bleiben erforderlich. Zwei neue Block-/Stereo-Gegenproben. Keine Änderung am Produktionsmixer oder den Audio-Grenzwerten. Erneute Apple-CI erforderlich.

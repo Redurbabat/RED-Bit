@@ -4,15 +4,15 @@
 set -euo pipefail
 
 kind="${1:-}"
-case "$kind" in
-  kotlin|rust) ;;
-  *) echo "Usage: $0 kotlin|rust" >&2; exit 2 ;;
+mode="${2:-build}"
+case "$kind:$mode" in
+  kotlin:build|rust:build|kotlin:--fingerprint|rust:--fingerprint) ;;
+  *) echo "Usage: $0 kotlin|rust [--fingerprint]" >&2; exit 2 ;;
 esac
+export PATH="$HOME/.cargo/bin:/opt/homebrew/bin:$PATH"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CACHE_ROOT="${BBT_IOS_FRAMEWORK_CACHE_DIR:-$HOME/.cache/bbt-bit/ios-frameworks}"
-mkdir -p "$CACHE_ROOT"
-
 case "$kind" in
   kotlin)
     # Das Shared-Framework enthält auch das in settings.gradle.kts eingebundene
@@ -28,13 +28,23 @@ esac
 
 fingerprint="$(
   {
-    printf 'BBT-Bit native-cache v2\nkind=%s\n' "$kind"
+    printf 'BBT-Bit native-cache v3\nkind=%s\n' "$kind"
+    uname -m
     xcodebuild -version
     if [[ "$kind" == "kotlin" ]]; then
-      java -version 2>&1
+      if [[ -n "${JAVA_HOME:-}" && -x "$JAVA_HOME/bin/java" ]]; then
+        "$JAVA_HOME/bin/java" -version 2>&1
+      else
+        java -version 2>&1
+      fi
+      printf 'ios=%s\nmacos=%s\nserver=%s\n' "${IPHONEOS_DEPLOYMENT_TARGET:-18.0}" "${MACOSX_DEPLOYMENT_TARGET:-15.0}" "${LISTEN_TOGETHER_SERVER:-}"
+      if [[ -f "$ROOT/local.properties" ]]; then
+        shasum -a 256 "$ROOT/local.properties" | awk '{print $1}'
+      fi
     else
       rustc --version
       cargo --version
+      printf 'rustflags=%s\nencoded-rustflags=%s\n' "${RUSTFLAGS:-}" "${CARGO_ENCODED_RUSTFLAGS:-}"
     fi
     while IFS= read -r -d '' source_file; do
       [[ -f "$ROOT/$source_file" ]] || continue
@@ -43,6 +53,11 @@ fingerprint="$(
     done < <(git -C "$ROOT" ls-files -z -- "${source_paths[@]}")
   } | shasum -a 256 | awk '{print $1}'
 )"
+if [[ "$mode" == "--fingerprint" ]]; then
+  printf '%s\n' "$fingerprint"
+  exit 0
+fi
+mkdir -p "$CACHE_ROOT"
 archive="$CACHE_ROOT/$kind.tar.gz"
 key_file="$CACHE_ROOT/$kind.key"
 checksum_file="$CACHE_ROOT/$kind.archive-sha256"
@@ -68,7 +83,15 @@ if [[ "${BBT_IOS_NATIVE_CACHE_DISABLE:-0}" != "1" ]] &&
 fi
 
 echo "BBT_NATIVE_CACHE_MISS=$kind"
-export PATH="$HOME/.cargo/bin:/opt/homebrew/bin:$PATH"
+if [[ "${BBT_IOS_NATIVE_CACHE_DISABLE:-0}" == "1" ]]; then
+  echo "BBT_NATIVE_CACHE_REASON=$kind:disabled"
+elif [[ ! -f "$archive" || ! -f "$key_file" || ! -f "$checksum_file" ]]; then
+  echo "BBT_NATIVE_CACHE_REASON=$kind:missing"
+elif [[ "$(cat "$key_file")" != "$fingerprint" ]]; then
+  echo "BBT_NATIVE_CACHE_REASON=$kind:fingerprint"
+else
+  echo "BBT_NATIVE_CACHE_REASON=$kind:archive"
+fi
 case "$kind" in
   kotlin)
     export JAVA_HOME="${JAVA_HOME:-$(/usr/libexec/java_home -v 21)}"

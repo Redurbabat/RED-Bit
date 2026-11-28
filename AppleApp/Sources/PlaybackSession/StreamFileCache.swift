@@ -174,7 +174,9 @@ actor StreamFileCache {
     /// The download has its first bytes. Later resolves of the same track must
     /// join this file instead of starting a second fetch at the handoff.
     func noteGrowing(videoId: String, path: String, kbps: Int = 0, quality: String? = nil, relativeLoudnessDb: Double? = nil, youtubeVideoId: String? = nil, durationSeconds: Int? = nil) {
-        guard !FileManager.default.fileExists(atPath: path + ".complete") else { return }
+        guard !FileManager.default.fileExists(atPath: path + ".complete"),
+              !FileManager.default.fileExists(atPath: path + ".failed"),
+              !FileManager.default.fileExists(atPath: path + ".playback-cancelled") else { return }
         inFlight[videoId] = (path, quality ?? Self.qualityIdentity, kbps, relativeLoudnessDb, youtubeVideoId, durationSeconds)
     }
 
@@ -187,7 +189,11 @@ actor StreamFileCache {
     func store(_ videoId: String, path: String, sourceIdentity: String = "unknown", codec: String = "unknown", kbps: Int = 0, quality: String? = nil, relativeLoudnessDb: Double? = nil, youtubeVideoId: String? = nil, durationSeconds: Int? = nil) {
         defer { if inFlight[videoId]?.path == path { inFlight.removeValue(forKey: videoId) } }
         guard !FileManager.default.fileExists(atPath: path + ".failed"),
+              !FileManager.default.fileExists(atPath: path + ".playback-cancelled"),
               !FileManager.default.fileExists(atPath: path + ".grow") || FileManager.default.fileExists(atPath: path + ".complete") else { return }
+        // Ein später Abschluss darf eine neuere laufende Fassung nicht
+        // ersetzen oder deren In-flight-Verweis entfernen.
+        if let active = inFlight[videoId], active.path != path { return }
         let suppliedExtension = URL(fileURLWithPath: path).pathExtension.lowercased()
         let ext = Self.extensions.contains(suppliedExtension) ? suppliedExtension : (AudioDownloadContainer.fileExtension(at: path) ?? suppliedExtension)
         let dest = cachedURL(for: videoId, ext: ext)
@@ -211,7 +217,7 @@ actor StreamFileCache {
         let entry = rememberedEntries[playbackMediaId ?? videoId]
         let manifest = Manifest(codec: cachedCodec, kbps: kbps, quality: quality ?? Self.qualityIdentity, sourceIdentity: sourceIdentity, recordingIdentity: videoId, complete: true, bytes: bytes.int64Value, sha256: hash, youtubeVideoId: youtubeVideoId, relativeLoudnessDb: relativeLoudnessDb, durationSeconds: durationSeconds, playbackMediaId: playbackMediaId, recordingVerified: recordingVerified, entry: entry)
         guard let data = try? JSONEncoder().encode(manifest), (try? data.write(to: manifestURL(dest.path), options: .atomic)) != nil else { return }
-        inFlight.removeValue(forKey: videoId)
+        if inFlight[videoId]?.path == path { inFlight.removeValue(forKey: videoId) }
         if let playbackMediaId { aliases?[playbackMediaId]?.removeAll { $0 == dest } }
         if let playbackMediaId, recordingVerified {
             _ = aliasedFiles(for: playbackMediaId)
@@ -322,17 +328,22 @@ actor StreamFileCache {
         for manifestFile in urls where manifestFile.pathExtension == "json" {
             guard let data = try? Data(contentsOf: manifestFile),
                   let manifest = try? JSONDecoder().decode(Manifest.self, from: data),
-                  manifest.complete,
+                  manifest.version == 1, manifest.complete, manifest.bytes > 0,
+                  manifest.codec != "unknown",
                   (!manifest.recordingIdentity.contains("#") && manifest.playbackMediaId == nil) || manifest.recordingVerified == true else { continue }
             let audio = manifestFile.deletingPathExtension()
-            guard FileManager.default.fileExists(atPath: audio.path) else { continue }
-            let values = try? audio.resourceValues(forKeys: Set(keys))
+            guard !FileManager.default.fileExists(atPath: audio.path + ".failed"),
+                  !FileManager.default.fileExists(atPath: audio.path + ".playback-cancelled"),
+                  let values = try? audio.resourceValues(forKeys: Set(keys)),
+                  let size = values.fileSize, Int64(size) == manifest.bytes else { continue }
+            // Die Liste prüft Marker und Dateigrösse ohne sämtliche Dateien
+            // zu hashen. Der eigentliche Wiedergabe-Lookup prüft SHA-256.
             out.append(CachedEntry(
                 videoId: manifest.playbackMediaId ?? manifest.youtubeVideoId ?? manifest.recordingIdentity,
-                bytes: Int64(values?.fileSize ?? 0),
+                bytes: Int64(size),
                 durationSeconds: manifest.durationSeconds,
                 codec: manifest.codec,
-                modified: values?.contentModificationDate ?? .distantPast,
+                modified: values.contentModificationDate ?? .distantPast,
                 entry: manifest.entry,
                 artworkReference: FileManager.default.fileExists(atPath: OfflineArtworkStore.coverURL(audioPath: audio.path).path) ? LocalArtwork.reference(path: audio.path) : nil
             ))

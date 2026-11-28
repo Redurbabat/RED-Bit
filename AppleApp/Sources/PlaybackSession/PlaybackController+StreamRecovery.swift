@@ -32,11 +32,48 @@ extension PlaybackController {
             deferredNetworkRecovery = nil
         }
         let now = ProcessInfo.processInfo.systemUptime
+        let watching = state == .playing && !smartMixInProgress && dolbyRenderer == nil && engineLoadedId != nil
+        let at = watching ? playbackPosition : 0
+        let stall = playbackStallTracker.observe(trackID: current.map { "\(playGeneration):\($0.id)" },
+            position: at, at: now, playing: watching, buffering: state == .buffering)
+        // Im Leerlauf weder Ausgabestatus noch Positionsdaten des Mixers
+        // viermal pro Sekunde abfragen. Fehler eines geladenen gestoppten
+        // Titels bleiben bewusst über den regulären Pfad erreichbar.
+        if state == .paused || state == .buffering || current == nil {
+            _ = outputWatchdog.observe(selection: playGeneration, position: 0, now: now,
+                                       playing: false, bufferedFrames: 0)
+            _ = streamRecovery.observe(position: 0, now: now, playing: false, bufferedFrames: 0)
+            return
+        }
         let health = engine.outputHealth()
+        // Ein leerer Puffer am fast vollständig abgespielten, belegbar vollständigen
+        // Titel kann auf eine verlorene EOS-Meldung hinweisen. Fehler haben Vorrang.
+        if watching, stall >= 12, let source = loadedSourcePath,
+           PlaybackStallTracker.canFinish(stalledFor: stall, position: at, duration: duration,
+               bufferedFrames: health.bufferedFrames, completeSource: completedSourceForEndRecovery(source)) {
+            debugLog.record("watchdog: near-end stall; verifying natural end position=\(at) duration=\(duration)", about: current?.id)
+            // Der gemeinsame EOS-Pfad prüft noch ausstehende Decoderfehler und
+            // behandelt Repeat, Sleep, Queue und Autoplay. Kein doppelter Sprung.
+            try? engine.pause()
+            handleTrackEnded(.natural, source: source)
+            return
+        }
         if outputWatchdog.observe(selection: playGeneration, position: playbackPosition, now: now,
                                   playing: state == .playing && !smartMixInProgress && dolbyRenderer == nil && engineLoadedId != nil,
                                   bufferedFrames: health.bufferedFrames) {
             recoverStalledOutput()
+            return
+        }
+        // Auch lokale Quellen, unvollständige Enden und eine erfolglose
+        // Ausgabereparatur dürfen nicht dauerhaft als spielend erscheinen.
+        if watching, stall >= 24, let entry = current, let source = loadedSourcePath {
+            debugLog.record("watchdog: persistent stall position=\(at) duration=\(duration) \(streamStallEvidence(source: source))", about: entry.id)
+            if recoverInterruptedStream(source: source, explanation: "Playback stalled; requesting a fresh stream.", confirmedFailure: true) { return }
+            pausePlayback(releaseAudioSession: true)
+            engineLoadedId = nil
+            restoredStart = (entry.id, max(0, at - 0.25))
+            recoveryNeedsFreshResolution = PlaybackRecoveryPolicy.canRecover(entrySource: entry.source, loadedSource: source, origin: resolvedOrigin[entry.id]?.rawValue)
+            reportPlaybackFailure(.streamRecovery, message: "Playback stalled. Press Play to retry.")
             return
         }
         // The range downloader waits for connectivity at its current offset.
@@ -49,11 +86,7 @@ extension PlaybackController {
             streamRecoveryPathChanges = NetworkQuality.shared.pathChanges
             if let entry = current { streamRecovery.select(entry.id, resetAttempts: false) }
         }
-        if state == .paused || state == .buffering {
-            _ = streamRecovery.observe(position: playbackPosition, now: ProcessInfo.processInfo.systemUptime, playing: false, bufferedFrames: 0)
-            return // Keep source failures queued until the listener resumes.
-        }
-        // Fehler aus einer laufenden Überblendung erst nach dem Handoff
+         // Fehler aus einer laufenden Überblendung erst nach dem Handoff
         // zuordnen; ein bereits gestoppter Mixer kann direkt wiederherstellen.
         guard !smartMixInProgress || state == .stopped else { return }
         for failure in engine.drainSourceErrors() {
@@ -73,6 +106,22 @@ extension PlaybackController {
                 stopAfterFailedRecovery(source: source)
             }
         }
+    }
+
+    private func completedSourceForEndRecovery(_ source: String) -> Bool {
+        guard source.hasPrefix("/"), let entry = current, engineLoadedId == entry.id else { return false }
+        let files = FileManager.default
+        guard files.fileExists(atPath: source), !files.fileExists(atPath: source + ".failed"),
+              !files.fileExists(atPath: source + ".playback-cancelled") else { return false }
+        // Ein .complete-Marker allein genügt nicht, falls eine erwartete Länge
+        // vorliegt und die Datei tatsächlich kürzer ist.
+        if let declared = try? String(contentsOfFile: source + ".len", encoding: .utf8) {
+            guard let length = Int64(declared.trimmingCharacters(in: .whitespacesAndNewlines)), length > 0,
+                  let attributes = try? files.attributesOfItem(atPath: source),
+                  let actual = (attributes[.size] as? NSNumber)?.int64Value, actual == length else { return false }
+        }
+        return files.fileExists(atPath: source + ".complete")
+            || (resolvedOrigin[entry.id]?.rawValue == "local" && !files.fileExists(atPath: source + ".grow"))
     }
 
     func stopAfterFailedRecovery(source: String, confirmedFailure: Bool = false) {

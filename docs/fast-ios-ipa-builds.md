@@ -88,3 +88,7 @@ References:
 - https://docs.codemagic.io/knowledge-codemagic/caching/
 - https://docs.codemagic.io/yaml-basic-configuration/yaml-getting-started/
 - https://developer.apple.com/documentation/xcode/build-settings-reference
+
+## GitHub SideStore – getrennte Framework-Caches (28.11.2026)
+
+Messung aus Gerätebau 46139055113: Kotlin 650 s, Rust 494 s; beide Framework-Caches MISS trotz wiederhergestelltem allgemeinen Actions-Cache. Der Geräteworkflow verwendet nun pro Komponente einen präzisen Schlüssel (`--fingerprint`), speichert unmittelbar nach erfolgreichem Neubau und meldet Treffer/Zeiten in der Laufzusammenfassung. Der Fingerabdruck berücksichtigt auch Kotlin-Buildkonfiguration, lokale Properties und Rust-Flags; Swift-only-Änderungen bleiben ausserhalb beider Fingerabdrücke. Einmalige Cache-Migration kann einen kalten Neubau auslösen. Die reale Warmbauzeit ist noch nicht gemessen. Native Rust-Revisionsangaben beziehen sich bei Cache-Treffern auf den ursprünglichen Framework-Bau; die IPA-Quellrevision wird weiterhin separat geprüft.

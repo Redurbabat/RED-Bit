@@ -4,6 +4,7 @@ enum AppAutomaticCheck: String, Codable, CaseIterable, Identifiable {
     case playbackProgress, queueIntegrity, decoder, outputStream, audioSession
     case playbackErrors, appErrors, networkStatus, pauseResume, trackChange
     case automixPlan, automixTransition, beatFile, coreMLFile, vocalFile
+    case beatPlan, coreMLPlan, vocalPlan
     case homeFeed, feedPaging, search, library, albumPreview, dayMix, queueNext, coverDrop
     case downloads, offlinePlayback, lyrics, backgroundPlayback, audioRoute, partySync
     case playerNavigation, dockInline, settings, designPreviews
@@ -25,6 +26,9 @@ enum AppAutomaticCheck: String, Codable, CaseIterable, Identifiable {
         case .beatFile: "Beat-Datei und SHA-256"
         case .coreMLFile: "Core-ML-Datei und SHA-256"
         case .vocalFile: "Vocal-Datei und SHA-256"
+        case .beatPlan: "Beat-Modell in Engine-Plan gemeldet"
+        case .coreMLPlan: "Core ML in Engine-Plan gemeldet"
+        case .vocalPlan: "Vocal-Modell in Engine-Plan gemeldet"
         case .homeFeed: "Home-Feed geladen"
         case .feedPaging: "Weitere Feed-Seite geladen"
         case .search: "Suchanfrage beantwortet"
@@ -53,6 +57,7 @@ enum AppTestEvidenceCode: String, Codable {
     case responseReceived, requestFailed, emptyResponse, queueUpdated, screenDisplayed
     case fileVerified, fileMissing, fileUnavailable, integrityFailed, modelBusy, platformUnsupported
     case backgroundEntered, routeChanged, previewRendered, previewFailed
+    case playbackStalled, nearEndStalled, modelPlanObserved
 }
 enum AppTestCheckStatus: String, Codable {
     case notObserved, observed, passed, failed, unavailable

@@ -170,6 +170,58 @@ extension PlaybackController {
         }
     }
 
+    /// Eine verspätete Radio-Antwort darf die lokale Wiedergabe am
+    /// natürlichen Queue-Ende nicht dauerhaft beenden. Party und Repeat
+    /// haben ihre eigenen Regeln; ohne gültigen Seed gibt es kein Warten.
+    func beginAutoplayEndWait() -> Bool {
+        guard effectiveAutoplayEnabled, repeatMode == .off,
+              !PartyStore.shared.inParty, NetworkQuality.shared.connected,
+              current != nil, autoplayEndWait == nil else { return false }
+        let previousState = state
+        state = .buffering
+        guard let context = recommendationContext else {
+            state = previousState
+            return false
+        }
+        autoplayEndWait = AutoplayEndWait(context: context, now: ProcessInfo.processInfo.systemUptime)
+        nowPlaying.updateRate(0, position: position)
+        debugLog.record("autoplay: waiting for late recommendations at queue end", about: current?.id)
+        maybeAutoplay(force: true)
+        return true
+    }
+
+    func pollAutoplayEndWait() {
+        guard let pending = autoplayEndWait else { return }
+        let sameSelection = playGeneration == pending.context.playbackGeneration
+            && playingIndex == pending.context.index
+        let next = nextPlayableIndex(after: playingIndex)
+        let context = repeatMode == .off && !PartyStore.shared.inParty ? recommendationContext : nil
+        switch pending.decision(current: context, now: ProcessInfo.processInfo.systemUptime,
+                                waiting: state == .buffering && sameSelection, hasNext: next != nil) {
+        case .wait:
+            return
+        case .advance:
+            guard let next else { return }
+            autoplayEndWait = nil
+            debugLog.record("autoplay: late recommendations arrived; continuing", about: current?.id)
+            automaticLoadEntryId = queue[next].id
+            loadCurrent(next, refreshAutoplay: false)
+        case .finish:
+            cancelAutoplayEndWait()
+            finishNaturalQueueEnd()
+        case .cancel:
+            autoplayEndWait = nil
+        }
+    }
+
+    func cancelAutoplayEndWait() {
+        guard autoplayEndWait != nil else { return }
+        autoplayEndWait = nil
+        autoplayRefresh.invalidate()
+        autoplayEmptyRetryTask?.cancel()
+        autoplayEmptyRetryTask = nil
+    }
+
     /// Eine leere Antwort bekommt einen kurzen Zweitversuch. Nur am echten
     /// Queue-Ende läuft der 15-Sekunden-Watchdog, und niemals nach Trackwechsel.
     private func scheduleEmptyAutoplayRetry(request: AutoplayRefreshState.Request) {
@@ -320,7 +372,11 @@ extension PlaybackController {
     func scheduleSequencing() {
         sequencingTask?.cancel()
         sequencingGeneration &+= 1
-        guard automixSequencingEnabled, let current else { return }
+        guard automixSequencingEnabled, let current,
+              PlaybackPreparationPolicy.allowsExtraAnalysis(
+                active: state == .playing || state == .buffering,
+                lowPower: ProcessInfo.processInfo.isLowPowerModeEnabled
+              ) else { return }
         let generation = sequencingGeneration
         let snapshot = queue
         let index = playingIndex
@@ -348,7 +404,7 @@ extension PlaybackController {
             if let currentPath, FileManager.default.fileExists(atPath: currentPath), listPositions.count > 1 {
                 var candidates: [(position: Int, path: String, text: String)] = []
                 for position in PlaybackQueuePolicy.ranked(listPositions, scores: fallback) {
-                    if Task.isCancelled { return }
+                    if Task.isCancelled || ProcessInfo.processInfo.isLowPowerModeEnabled { return }
                     let entry = snapshot[position]
                     let path: String?
                     if entry.isLocal, FileManager.default.fileExists(atPath: entry.source) {
@@ -374,7 +430,7 @@ extension PlaybackController {
                 var previousPath = currentPath
                 var previousText = current.itemText
                 while !remaining.isEmpty {
-                    if Task.isCancelled { return }
+                    if Task.isCancelled || ProcessInfo.processInfo.isLowPowerModeEnabled { return }
                     let ranked = await AutomixQueueRanker.shared.rank(
                         currentPath: previousPath,
                         candidatePaths: remaining.map(\.path),
@@ -402,13 +458,13 @@ extension PlaybackController {
                     var texts: [String] = []
                     var available: [Int] = []
                     for position in positions {
-                        if Task.isCancelled { return }
+                        if Task.isCancelled || ProcessInfo.processInfo.isLowPowerModeEnabled { return }
                         let entry = snapshot[position]
                         let path: String?
                         if entry.isLocal, FileManager.default.fileExists(atPath: entry.source) {
                             path = entry.source
                         } else if entry.source.hasPrefix("yt:"), let id = entry.videoId {
-                            path = await StreamFileCache.shared.path(for: id)
+                            path = await StreamFileCache.shared.path(for: id, allowGrowing: false)
                         } else { path = nil }
                         if let path, FileManager.default.fileExists(atPath: path) {
                             paths.append(path)
@@ -438,6 +494,10 @@ extension PlaybackController {
                 )
             }
             guard let self, !Task.isCancelled, self.sequencingGeneration == generation,
+                  PlaybackPreparationPolicy.allowsExtraAnalysis(
+                    active: self.state == .playing || self.state == .buffering,
+                    lowPower: ProcessInfo.processInfo.isLowPowerModeEnabled
+                  ),
                   self.automixSequencingEnabled, self.queue == snapshot, self.playingIndex == index,
                   self.playGeneration == playbackGeneration, self.current?.id == current.id,
                   PageSession.generation() == sessionGeneration else { return }

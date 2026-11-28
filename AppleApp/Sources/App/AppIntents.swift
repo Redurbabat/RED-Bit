@@ -1,5 +1,6 @@
 import AppIntents
 import Foundation
+import RedBitShared
 
 // MARK: - The app's objects, for code that has no scene
 
@@ -180,6 +181,172 @@ private enum CachedSongs {
 /// title, a parameter and the sentence to say back.
 @MainActor
 enum AppIntentActions {
+    private static func requireConsent(_ scope: RedBitLocalAutomationConsent.Scope) throws {
+        guard RedBitLocalAutomationConsent.allows(scope) else {
+            throw RedBitIntentError.refused(
+                String(localized: "Local RED Bit automation is not authorized. Review permissions in Settings.")
+            )
+        }
+    }
+
+    /// Status ohne Musiktitel, Konto, URLs oder private Fehlertexte.
+    /// Liest nur das vorhandene Controller-Modell, kein Netzwerkzugriff.
+    static func playbackStatus() throws -> String {
+        try requireConsent(.status)
+        return try statusSnapshot(AppServices.shared.controller).json()
+    }
+
+    private static func statusSnapshot(_ controller: PlaybackController) -> RedBitAutomationStatus {
+        let state: RedBitAutomationStatus.State
+        switch controller.state {
+        case .stopped: state = .stopped
+        case .buffering: state = .buffering
+        case .playing: state = .playing
+        case .paused: state = .paused
+        }
+        return RedBitAutomationStatus(
+            state: state, hasTrack: controller.current != nil,
+            position: controller.position, duration: controller.duration,
+            canNext: controller.canPlayNext, canPrevious: controller.canPlayPrevious,
+            controlsLocked: PartyStore.shared.state.controlsLocked,
+            hasPlaybackError: controller.lastError != nil
+        )
+    }
+
+    /// Prüfung und Auftrag erfolgen auf demselben MainActor ohne Suspension.
+    /// Die Quittung bestätigt nur die Anforderung, nicht hörbare Wiedergabe.
+    static func transport(_ command: RedBitTransportCommand) throws -> String {
+        try requireConsent(.transport)
+        let controller = AppServices.shared.controller
+        let decision = command.decision(for: statusSnapshot(controller))
+        if decision == .requested {
+            switch command {
+            case .play:
+                controller.togglePlayPause()
+            case .pause:
+                if controller.isBuffering {
+                    controller.togglePlayPause()
+                } else {
+                    // Kein Toggle: bei einer defekten Quelle könnte ein
+                    // Toggle sonst einen neuen Load statt Pause anstossen.
+                    controller.noteLocalIntent()
+                    controller.pausePlayback()
+                }
+            case .next:
+                controller.next()
+            case .previous:
+                controller.previous()
+            }
+        } else if decision == .unchanged && command == .pause {
+            // Auch ein bereits pausierter Nutzer kann eine ausstehende
+            // automatische Fortsetzung nach einem Anruf ablehnen.
+            controller.wasInterrupted = false
+        }
+        return try RedBitTransportCommand.Receipt(
+            command: command, decision: decision, status: statusSnapshot(controller)
+        ).json()
+    }
+
+    /// Eingaben und aktuelle Wiedergabegeneration werden synchron geprüft.
+    /// Die Quittung enthält keinen ungeprüften Parameter und keine Musikdaten.
+    static func adjust(_ adjustment: RedBitAdjustment) throws -> String {
+        switch adjustment {
+        case .seekSeconds, .volumePercent: try requireConsent(.transport)
+        case .automix: try requireConsent(.preferences)
+        }
+        let controller = AppServices.shared.controller
+        let decision = adjustment.decision(
+            status: statusSnapshot(controller), volume: controller.volume,
+            duration: controller.duration,
+            loaded: controller.engineLoadedId != nil && controller.engineLoadedId == controller.current?.id,
+            mixing: controller.smartMixInProgress, automixEnabled: controller.automixEnabled
+        )
+        if decision == .requested {
+            switch adjustment {
+            case .volumePercent(let percent):
+                controller.volume = percent / 100
+            case .seekSeconds(let seconds):
+                controller.seek(to: seconds)
+            case .automix(let enabled):
+                controller.setAutomixEnabled(enabled)
+            }
+        }
+        return try RedBitAdjustment.Receipt(
+            adjustment: adjustment, decision: decision, status: statusSnapshot(controller),
+            volume: controller.volume, automixEnabled: controller.automixEnabled
+        ).json()
+    }
+
+    static func queueSummary() throws -> String {
+        try requireConsent(.status)
+        let controller = AppServices.shared.controller
+        let start = controller.current == nil ? 0 : min(controller.queue.count, max(0, controller.playingIndex + 1))
+        let upcoming = controller.queue.dropFirst(start)
+        return try RedBitQueueSummary(
+            total: controller.queue.count, upcoming: upcoming.count,
+            automaticUpcoming: upcoming.filter(\.fromAutoplay).count,
+            shuffleEnabled: controller.shuffleEnabled,
+            controlsLocked: PartyStore.shared.state.controlsLocked
+        ).json()
+    }
+
+    static func setPreference(_ preference: RedBitAutomationPreference) throws -> String {
+        try requireConsent(.preferences)
+        let controller = AppServices.shared.controller
+        let settings = PlatformSettings.shared
+        let eqKey = "equalizer_enabled"
+        let wifiKey = "audio_quality_wifi"
+        let cellKey = "audio_quality_cellular"
+        let decision = preference.decision(
+            locked: PartyStore.shared.state.controlsLocked, mixing: controller.smartMixInProgress,
+            equalizer: settings.getBoolean(key: eqKey, default: false),
+            wifiQuality: settings.getString(key: wifiKey, default: "LOSSLESS"),
+            cellularQuality: settings.getString(key: cellKey, default: "LOSSLESS"),
+            shuffle: controller.shuffleEnabled
+        )
+        if decision == .requested {
+            switch preference {
+            case .equalizer(let enabled):
+                settings.putBoolean(key: eqKey, value: enabled)
+                controller.applyEqualizer()
+            case .streamQuality(let value, let metered):
+                // Nur die gewählte Vorgabe ändern; keinen laufenden Titel neu laden.
+                if metered { AppSettings.shared.setAudioQualityCellular(value: value) }
+                else { AppSettings.shared.setAudioQualityWifi(value: value) }
+                controller.refreshUpcomingURLPrefetch()
+            case .shuffle(let enabled):
+                if controller.shuffleEnabled != enabled { controller.toggleShuffle() }
+            }
+            NotificationCenter.default.post(name: .redBitAutomationPreferencesChanged, object: nil)
+        }
+        return try RedBitAutomationPreference.Receipt(
+            preference: preference, decision: decision,
+            equalizer: settings.getBoolean(key: eqKey, default: false),
+            wifiQuality: settings.getString(key: wifiKey, default: "LOSSLESS"),
+            cellularQuality: settings.getString(key: cellKey, default: "LOSSLESS"),
+            shuffle: controller.shuffleEnabled
+        ).json()
+    }
+
+    /// Einheitlicher lokaler Aufrufweg. Die Freigabe wird vor der
+    /// Argumentauswertung und nochmals im jeweiligen Controller-Pfad geprüft.
+    static func invokeTool(name: String, arguments: String) throws -> String {
+        guard let tool = RedBitToolContract.Tool(rawValue: name) else {
+            throw RedBitIntentError.refused(String(localized: "Unknown RED Bit automation tool."))
+        }
+        try requireConsent(tool.scope)
+        let invocation: RedBitToolContract.Invocation
+        do { invocation = try RedBitToolContract.parse(tool: tool, arguments: arguments) }
+        catch { throw RedBitIntentError.refused(String(localized: "Invalid RED Bit automation arguments.")) }
+        switch invocation {
+        case .status: return try playbackStatus()
+        case .queue: return try queueSummary()
+        case .transport(let command): return try transport(command)
+        case .adjustment(let adjustment): return try adjust(adjustment)
+        case .preference(let preference): return try setPreference(preference)
+        }
+    }
+
     /// Play or pause, and say which happened.
     static func togglePlayback() async throws -> String {
         let controller = AppServices.shared.controller
@@ -279,6 +446,192 @@ enum AppIntentActions {
 }
 
 // MARK: - The intents
+
+/// Lokale, explizite Abfrage über Kurzbefehle. Kein Listener, keine
+/// automatische Freigabe an RED ID, MCP, Siri-Drittanbieter oder Server.
+struct ReadPlaybackStatusIntent: AppIntent {
+    static var title: LocalizedStringResource = "Read RED Bit Playback Status"
+    static var description = IntentDescription("Read limited playback status as JSON without song or account details.")
+    static var openAppWhenRun = false
+    static var authenticationPolicy: IntentAuthenticationPolicy = .requiresAuthentication
+
+    func perform() async throws -> some IntentResult & ReturnsValue<String> {
+        let result = try await AppIntentActions.playbackStatus()
+        return .result(value: result)
+    }
+}
+
+struct ResumeRedBitIntent: AppIntent {
+    static var title: LocalizedStringResource = "Resume RED Bit"
+    static var description = IntentDescription("Resume the selected track without toggling active playback.")
+    static var openAppWhenRun = false
+    static var authenticationPolicy: IntentAuthenticationPolicy = .requiresAuthentication
+
+    func perform() async throws -> some IntentResult & ReturnsValue<String> {
+        .result(value: try await AppIntentActions.transport(.play))
+    }
+}
+
+struct PauseRedBitIntent: AppIntent {
+    static var title: LocalizedStringResource = "Pause RED Bit"
+    static var description = IntentDescription("Pause playback without starting a new track.")
+    static var openAppWhenRun = false
+    static var authenticationPolicy: IntentAuthenticationPolicy = .requiresAuthentication
+
+    func perform() async throws -> some IntentResult & ReturnsValue<String> {
+        .result(value: try await AppIntentActions.transport(.pause))
+    }
+}
+
+struct NextRedBitIntent: AppIntent {
+    static var title: LocalizedStringResource = "Next RED Bit Track"
+    static var description = IntentDescription("Request the next available queue entry.")
+    static var openAppWhenRun = false
+    static var authenticationPolicy: IntentAuthenticationPolicy = .requiresAuthentication
+
+    func perform() async throws -> some IntentResult & ReturnsValue<String> {
+        .result(value: try await AppIntentActions.transport(.next))
+    }
+}
+
+struct PreviousRedBitIntent: AppIntent {
+    static var title: LocalizedStringResource = "Previous RED Bit Track"
+    static var description = IntentDescription("Use the normal previous-track action in RED Bit.")
+    static var openAppWhenRun = false
+    static var authenticationPolicy: IntentAuthenticationPolicy = .requiresAuthentication
+
+    func perform() async throws -> some IntentResult & ReturnsValue<String> {
+        .result(value: try await AppIntentActions.transport(.previous))
+    }
+}
+
+struct SetRedBitVolumeIntent: AppIntent {
+    static var title: LocalizedStringResource = "Set RED Bit Volume"
+    static var description = IntentDescription("Set the app volume to a value from 0 to 100 percent.")
+    static var openAppWhenRun = false
+    static var authenticationPolicy: IntentAuthenticationPolicy = .requiresAuthentication
+
+    @Parameter(title: "Volume (%)")
+    var percent: Double
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("Set RED Bit Volume: \(\.$percent)")
+    }
+
+    func perform() async throws -> some IntentResult & ReturnsValue<String> {
+        .result(value: try await AppIntentActions.adjust(.volumePercent(percent)))
+    }
+}
+
+struct SeekRedBitIntent: AppIntent {
+    static var title: LocalizedStringResource = "Seek in RED Bit"
+    static var description = IntentDescription("Request a position in seconds within the loaded track.")
+    static var openAppWhenRun = false
+    static var authenticationPolicy: IntentAuthenticationPolicy = .requiresAuthentication
+
+    @Parameter(title: "Position (seconds)")
+    var seconds: Double
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("Seek in RED Bit: \(\.$seconds)")
+    }
+
+    func perform() async throws -> some IntentResult & ReturnsValue<String> {
+        .result(value: try await AppIntentActions.adjust(.seekSeconds(seconds)))
+    }
+}
+
+struct SetRedBitAutomixIntent: AppIntent {
+    static var title: LocalizedStringResource = "Set RED Bit Automix"
+    static var description = IntentDescription("Enable or disable Automix explicitly.")
+    static var openAppWhenRun = false
+    static var authenticationPolicy: IntentAuthenticationPolicy = .requiresAuthentication
+
+    @Parameter(title: "Automix enabled")
+    var enabled: Bool
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("Set RED Bit Automix: \(\.$enabled)")
+    }
+
+    func perform() async throws -> some IntentResult & ReturnsValue<String> {
+        .result(value: try await AppIntentActions.adjust(.automix(enabled)))
+    }
+}
+
+struct ReadRedBitQueueIntent: AppIntent {
+    static var title: LocalizedStringResource = "Read RED Bit Queue Summary"
+    static var description = IntentDescription("Read queue counts without song details.")
+    static var openAppWhenRun = false
+    static var authenticationPolicy: IntentAuthenticationPolicy = .requiresAuthentication
+
+    func perform() async throws -> some IntentResult & ReturnsValue<String> {
+        .result(value: try await AppIntentActions.queueSummary())
+    }
+}
+
+struct SetRedBitEqualizerIntent: AppIntent {
+    static var title: LocalizedStringResource = "Set RED Bit Equalizer"
+    static var description = IntentDescription("Enable or disable the saved equalizer setting.")
+    static var openAppWhenRun = false
+    static var authenticationPolicy: IntentAuthenticationPolicy = .requiresAuthentication
+
+    @Parameter(title: "Equalizer enabled")
+    var enabled: Bool
+
+    func perform() async throws -> some IntentResult & ReturnsValue<String> {
+        .result(value: try await AppIntentActions.setPreference(.equalizer(enabled)))
+    }
+}
+
+struct SetRedBitStreamQualityIntent: AppIntent {
+    static var title: LocalizedStringResource = "Set RED Bit Streaming Quality"
+    static var description = IntentDescription("Set LOW, MEDIUM, HIGH or LOSSLESS for the selected network.")
+    static var openAppWhenRun = false
+    static var authenticationPolicy: IntentAuthenticationPolicy = .requiresAuthentication
+
+    @Parameter(title: "Streaming quality")
+    var quality: String
+
+    @Parameter(title: "Mobile data")
+    var metered: Bool
+
+    func perform() async throws -> some IntentResult & ReturnsValue<String> {
+        .result(value: try await AppIntentActions.setPreference(.streamQuality(quality, metered: metered)))
+    }
+}
+
+struct SetRedBitShuffleIntent: AppIntent {
+    static var title: LocalizedStringResource = "Set RED Bit Shuffle"
+    static var description = IntentDescription("Enable or disable shuffle without toggling it twice.")
+    static var openAppWhenRun = false
+    static var authenticationPolicy: IntentAuthenticationPolicy = .requiresAuthentication
+
+    @Parameter(title: "Shuffle enabled")
+    var enabled: Bool
+
+    func perform() async throws -> some IntentResult & ReturnsValue<String> {
+        .result(value: try await AppIntentActions.setPreference(.shuffle(enabled)))
+    }
+}
+
+/// Lokale JSON-Brücke für alle zwölf Operationen, kein Remote-Endpunkt.
+struct InvokeRedBitToolIntent: AppIntent {
+    static var title: LocalizedStringResource = "Invoke RED Bit Tool"
+    static var description = IntentDescription("Call a documented local RED Bit tool with JSON arguments.")
+    static var openAppWhenRun = false
+    static var authenticationPolicy: IntentAuthenticationPolicy = .requiresAuthentication
+
+    @Parameter(title: "Tool name")
+    var tool: String
+
+    @Parameter(title: "JSON arguments")
+    var arguments: String
+
+    func perform() async throws -> some IntentResult & ReturnsValue<String> {
+        .result(value: try await AppIntentActions.invokeTool(name: tool, arguments: arguments))
+    }
+}
 
 /// Play or pause what is already loaded. Background-capable: a listener who says
 /// "pause" is not asking for a window.

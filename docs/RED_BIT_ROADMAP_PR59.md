@@ -47,3 +47,67 @@ Jeder Bereich bekommt Quellnachweis, Tests, SHA, Build/Plattform, Status und bek
 - Diagnose ergänzt um Underruns, Rebuilds, Xruns, Sessionstatus und System-/Geräteunterbrechungsgründe.
 - Policy-Regressionen für Wartezeit, Pausen, Fortschritt, leeren Puffer und begrenzte Reparatur. Keine Geräteabnahme behauptet.
 - Weitere Roadmap-Bereiche bleiben offen; insbesondere native UI, Sync, MCP, RED DJ und IPA müssen separat abgenommen werden.
+
+## Folgebranch: Audio-Kontinuität
+
+Der Branch `feat/red-bit-audio-continuity-20261128` basiert auf PR #59 (bd15a0f); der laufende Gerätebau bleibt unberührt. Erster Umfang: natürliches Ende der lokalen Queue bei aktivem Autoplay wartet höchstens 20 Sekunden auf verspätete Empfehlungen. Auswahl-, Queue- und Kontokontext sowie Pause/Repeat/Party begrenzen den Wiederanlauf. Ohne Netzwerk oder Seed bleibt das normale Ende erhalten. Sieben neue Policy-Prüfungen in der bestehenden Queue-Suite; echte Wiedergabe und Gerätebau sind nicht bestätigt. Weitere Audio-, Design- und Ökosystem-Punkte bleiben offen.
+
+### Cache und URL-Vorwärmung (Folge-PR)
+- Abgebrochene Quellen nicht als wachsend oder fertig registrieren; ältere Abschlüsse dürfen neuere laufende Quellen nicht überschreiben.
+- Offline-Liste blendet falsche Dateigrössen, ungültige Manifestversionen, unbekannte Codecs und Fehler-/Abbruchmarker aus; SHA-256 bleibt beim Öffnen verbindlich.
+- URL-Vorwärmung an Auswahlgeneration und Netzpfad koppeln, keine Auflösung nach Task-Abbruch, nur noch kommende Queue-Einträge. Bestehendes Limit 1 (Mobilfunk) / 3 (WLAN) bleibt.
+- Drei neue Download-/Cache-Gegenproben; vollständige Apple-CI und Geräteabnahme stehen aus.
+
+### RED DJ – begrenzte Automix-Planung
+- Eine erfolgreich vorbereitete Quelle wird bei einem späteren Planungs-/Enginefehler nicht mehr als unspielbar markiert. Sicherheitsüberblendung oder normaler EOS-Load bleibt möglich.
+- Zusätzliche Planung startet/erneuert sich nur innerhalb eines Budgets von 12 Versuchen und 24 Sekunden, mit mindestens Fade + 8 Sekunden Vorlauf bei bekannter Länge. Bei unbekannter Länge maximal eine Runde. Prüfungen auch zwischen Analysephasen und vor Übergabe an die Engine. Bereits laufende native Analyse kann das Budget überschreiten; keine harte Unterbrechung versprochen.
+- Neun neue Policy-Gegenproben; keine Änderung der eigentlichen DJ-Analysemodelle oder DSP-Effekte. Vollständige CI und Hörtest ausstehend.
+
+### Schnellere IPA-Builds
+- Messung PR #59: Kotlin 650 s, Rust 494 s; beide Framework-Misses trotz allgemeinem Actions-Cache.
+- Separate quell-/toolchainbasierte Cache-Schlüssel, sofortiges Speichern erfolgreicher Frameworks, Cache-Diagnose und Zeiten in der Build-Zusammenfassung. Kein Parallelbau erzwungen (CPU/RAM-Konkurrenz noch nicht gemessen).
+- Fixture-Prüfungen für reine Swift-Änderungen, unabhängige native Änderungen, lokale Buildkonfiguration und beschädigtes Archiv erweitert. Tatsächlicher macOS-Warmbau steht aus; keine neue IPA aus diesem Folge-PR gestartet.
+
+### Energiesparbetrieb und Ausgabeschutz
+- System-Stromsparmodus begrenzt spekulative URL-Auflösungen auf null und überspringt zusätzliche DJ-/Queue-Analyse; echte Next-Track-Vorbereitung und Sicherheitsüberblendung bleiben aktiv. Pause beendet URL- und Sequencing-Aufgaben, Fortsetzung startet sie bei Bedarf neu. Keine Änderung von Audioqualität oder gespeicherten Einstellungen.
+- Offline-Sequencing betrachtet nur fertige Cachedateien. Pausierte, puffernde oder leere Auswahl setzt Watchdog-Beobachtung ohne wiederholte native Statusabfragen zurück; gestoppte geladene Quellen behalten Fehlerbehandlung.
+- Output-Watchdog prüft Transportgeneration und Mix vor und nach Session-Aktivierung; bestätigter Reparaturfehler führt zu Pause statt stiller Wiedergabeanzeige.
+- Sieben neue Policy-Prüfungen. Bereits laufende native Analyse kann noch auslaufen; Akkueinsparung und Audioverhalten müssen am Gerät gemessen werden.
+
+### Apple Player – konsistente Transport- und Direktaktionen
+- Mini-Player auf iPhone/iPad/Mac verwendet denselben Play/Pause-Ladezustand: Spinner mit Pause-Symbol und bedienbarem Knopf statt blockiertem Spinner. Auf iPad grössere Play/Pause-Trefffläche; bestehende native Glasfläche und Zoom bleiben unverändert.
+- Full Player und Arc-Variante benennen die Ladeaktion korrekt als Pause. Direktzugriffe auf Lyrics/Queue werden beim ersten Öffnen und in bestehenden Player-Ansichten verarbeitet, ohne die andere Anfrage stehenzulassen.
+- Zwei zusätzliche statische Quellprüfungen; keine neue visuelle Geräteabnahme oder vollständige Neugestaltung behauptet. Bestehende deutsche Schlüssel Pause/Wiedergabe/Queue/Lyrics wiederverwendet.
+
+### RED MCP – lokale Grundlage
+- Versionierte, rein lesende Statusprojektion mit festen Feldern, ohne Titel/Künstler/URLs/IDs/Tokens/Dateipfade oder Fehlertexte. Authentifizierungspflichtiger lokaler App Intent für Kurzbefehle, keine neue Netzwerkfreigabe.
+- RED ID bleibt ausschliesslich bei identity:read. Remote-MCP, zusätzliche Berechtigungen, Freigabe/Widerruf und Transportsteuerung über Server sind noch nicht implementiert. Sieben zusätzliche Statusprüfungen in der Recovery-Suite, Apple-CI ausstehend.
+
+### RED MCP – explizite lokale Transportaufträge
+- Vier zusätzliche authentifizierte Kurzbefehle für Play/Pause/Next/Previous. Zustand und Party-Sperren vor Ausführung auf dem MainActor prüfen. Wiederholtes Play/Pause schaltet nicht versehentlich um; Navigation bleibt absichtlich nicht idempotent.
+- Versionierte, private Quittung mit requested/unchanged/locked/unavailable; kein hörbarer Erfolgsnachweis. Kein neuer Remote-Transport.
+- Policy-Gegenproben für alle Zustände, Sperren, leere Auswahl, Navigationsgrenzen und Quittung. Geräteabnahme ausstehend.
+
+### RED MCP – lokale Audio-Einstellungen
+- Drei typisierte, authentifizierungspflichtige Kurzbefehle für Lautstärke (App-Regler), Seek und Automix an/aus. Grenzen und nicht endliche Werte prüfen, Party-Sperren respektieren, Seek/Automix-Wechsel bei aktiver Überblendung ablehnen.
+- Eigene private Quittung ohne ungültige Parameter oder Musikdaten. Keine Änderung der Systemlautstärke, keine neue RED-ID-Berechtigung und kein Remote-Listener.
+- Policy-Gegenproben für Grenzen, Sperren, Pufferzustand, fehlende Dauer, laufende Überblendung, wiederholte Einstellungen und Quittungen ergänzt. Geräteprüfung ausstehend.
+
+### RED MCP – Audio-/Queue-Einstellungen
+- Lokale authentifizierte Queue-Übersicht ohne Titel/IDs, Equalizer- und Shuffle-Schalter sowie getrennte WLAN-/Mobilfunk-Qualitätsvorgaben. Allowlist, Party-Schutz und unveränderte Einstellungen ohne erneuten Auftrag.
+- EQ-Bypass und laufender Titel bleiben erhalten; Settings und Equalizer übernehmen die geänderten Vorgaben. Die Statusquittung beschreibt Einstellungen, keine garantierte Audioausgabe.
+- Policy-Gegenproben und JSON-Feldprüfung erweitert. Noch kein Remote-MCP; keine destruktive Queue-/Playlist-Operation. Geräteabnahme ausstehend.
+
+### RED Server – lokale Freigabeverwaltung als Voraussetzung
+- Redion PR #258 (263406ef) meldet externalAppActions:false; identity:read ist keine Musikberechtigung. Kein Servercode verändert, keine automatische Verbindung.
+- Opt-in unter Konto & Integrationen → RED Automation: Status, Transport und Einstellungen getrennt, standardmässig aus. Status-Widerruf entfernt auch beide Schreibfreigaben. Jede der zwölf neuen lokalen Aktionen prüft ihre Freigabe vor Controller-Zugriff; bestehende Siri-Aktionen bleiben unverändert.
+- Isolierte UserDefaults-Gegenproben für Standard-Aus, Abhängigkeit, Widerruf und erneute Freigabe; Geräte-/Apple-CI ausstehend. Bereits beauftragte asynchrone Aktionen werden nicht rückgängig gemacht. Server-seitiger Scope und Remote-Transport fehlen weiterhin.
+
+### RED MCP – einheitlicher lokaler Werkzeugvertrag
+- Zwölf typisierte Operationen als versionierter JSON-Katalog, gemeinsamer authentifizierter App Intent, Wiederverwendung der bestehenden Scope-/Party-Prüfungen; kein Remote-Transport.
+- Strikte Argumenttypen, exakte Feldmenge, Wertebereiche, 4096-Byte-Limit. Katalog-Gleichheit und positive/negative Aufrufe in der Swift-Suite; keine latente Schreibfreigabe ohne Status.
+- Auf Diagnose-Commit a3c0b5d aufgebaut (nicht überschrieben). Vorherige macOS-Kompilierung, Regression, SDK-Pilot und Simulator-XCUITest-Schritt grün, gesamte Simulator-Suite noch offen. Neue CI ausstehend.
+
+### CI-Blocker: Beatmatching-Aufnahme
+- Lauf 46155196072: Swift-Werkzeugvertrag, iPhone-UI, macOS und Kotlin grün; Rust 336/1/1 (bestanden/fehlgeschlagen/ignoriert). Nur 26,2 s PCM nach 120 s; Ursache nicht bewiesen.
+- Blockweise Stereo-Aufnahme, Fortschritts-/Ende-Watchdog, absolute 270-s-Grenze und detaillierter Fehlerbericht; komplette 28-s-Aufnahme und bisherige Beatdrift-/BPM-Grenzen unverändert. Zwei neue Harness-Gegenproben. Keine Produktionsänderung; erneute CI steht aus.

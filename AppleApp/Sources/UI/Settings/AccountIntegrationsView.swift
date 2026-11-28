@@ -50,6 +50,11 @@ struct AccountIntegrationsView: View {
                 } label: {
                     Label("RED Home Server", systemImage: "person.crop.circle.badge.checkmark")
                 }
+                PushLink {
+                    RedBitAutomationPermissionsView()
+                } label: {
+                    Label("RED Automation", systemImage: "lock.shield")
+                }
             }
             // A session that is saved but could not be put back, said out loud.
             //

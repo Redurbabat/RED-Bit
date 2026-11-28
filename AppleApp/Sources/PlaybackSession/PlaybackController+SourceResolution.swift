@@ -674,8 +674,12 @@ extension PlaybackController {
     /// Warm short-lived stream URLs for the upcoming queue window. This does
     /// not request media bytes; the opening range remains coupled to playback.
     func warmUpcoming(around index: Int, generation: UInt64) {
-        guard state == .playing || state == .buffering || state == .paused else { return }
-        guard NetworkQuality.shared.connected, repeatMode != .one else {
+        let metered = NetworkQuality.shared.metered
+        let prefetchCount = PlaybackPreparationPolicy.speculativeURLCount(
+            active: state == .playing || state == .buffering,
+            metered: metered, lowPower: ProcessInfo.processInfo.isLowPowerModeEnabled
+        )
+        guard prefetchCount > 0, NetworkQuality.shared.connected, repeatMode != .one else {
             urlPrefetchTask?.cancel(); urlPrefetchFingerprint = nil
             return
         }
@@ -686,13 +690,13 @@ extension PlaybackController {
         // needs the current file, which is already loaded.
         // The shared resolver caches issued URLs for 20 seconds. Keep the work
         // within that freshness window and cap it to a visible queue-sized set.
-        let metered = NetworkQuality.shared.metered
-        let prefetchCount = metered ? 1 : 3
         let prefetch = queue.dropFirst(index + 1).prefix(prefetchCount).filter {
             $0.source.hasPrefix("yt:") && !$0.id.hasPrefix("saavn:")
         }
         let prefs = ResolvePrefs.current()
-        let fingerprint = "\(prefs.maxKbps)|metered=\(metered)|" + prefetch.map(\.id).joined(separator: "|")
+        // Dieselbe Queue kann nach einer neuen Auswahl erneut erscheinen.
+        // Alte abgebrochene Tasks dürfen dann keine Vorwärmung blockieren.
+        let fingerprint = "\(generation)|\(NetworkQuality.shared.pathChanges)|\(prefs.maxKbps)|metered=\(metered)|" + prefetch.map(\.id).joined(separator: "|")
         guard fingerprint != urlPrefetchFingerprint else { return }
         urlPrefetchFingerprint = fingerprint
         urlPrefetchTask?.cancel()
@@ -705,15 +709,22 @@ extension PlaybackController {
                 let stillQueued = await MainActor.run { [weak self] in
                     guard let self else { return false }
                     guard self.playGeneration == generation,
-                          self.queue.contains(where: { $0.id == id }) else { return false }
+                          self.queue.dropFirst(self.playingIndex + 1).contains(where: { $0.id == id }) else { return false }
                     // A path change can happen while this sequential read-ahead
                     // is running. Keep the first queued item, but stop before
                     // resolving additional speculative URLs on a metered path.
-                    return NetworkQuality.shared.connected && (!NetworkQuality.shared.metered || id == prefetch.first?.id)
+                    return NetworkQuality.shared.connected
+                        && PlaybackPreparationPolicy.speculativeURLCount(
+                            active: self.state == .playing || self.state == .buffering,
+                            metered: NetworkQuality.shared.metered,
+                            lowPower: ProcessInfo.processInfo.isLowPowerModeEnabled
+                        ) > 0
+                        && (!NetworkQuality.shared.metered || id == prefetch.first?.id)
                 }
                 guard stillQueued else { continue }
                 let videoId = String(entry.source.dropFirst(3))
                 if await StreamFileCache.shared.path(for: videoId, allowQualityFallback: true) != nil { continue }
+                guard !Task.isCancelled, !ProcessInfo.processInfo.isLowPowerModeEnabled else { return }
                 _ = try? await InnertubeStreamResolver.shared.resolve(videoId: videoId, maxKbps: prefs.maxKbps, background: true)
             }
         }

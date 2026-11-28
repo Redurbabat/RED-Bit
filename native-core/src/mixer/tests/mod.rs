@@ -676,6 +676,65 @@ fn test_drain_yields_after_a_bounded_block() {
     assert_eq!(buffered.load(Ordering::Relaxed), 0);
 }
 
+/// PCM-Aufnahme in begrenzten, vollständigen Stereo-Blöcken. Wie im
+/// Audio-Callback wird der Zähler einmal pro Block korrigiert, nicht für
+/// jedes einzelne Sample; parallel publizierte Frames bleiben erhalten.
+fn capture_available_frames(
+    consumer: &mut rtrb::Consumer<f32>,
+    buffered: &AtomicU64,
+    samples: &mut Vec<f32>,
+    remaining_frames: usize,
+) -> usize {
+    let frames = (consumer.slots() / 2).min(1024).min(remaining_frames);
+    for _ in 0..frames {
+        samples.push(consumer.pop().unwrap());
+        samples.push(consumer.pop().unwrap());
+    }
+    if frames > 0 {
+        let _ = buffered.fetch_update(Ordering::AcqRel, Ordering::Relaxed, |v| {
+            Some(v.saturating_sub(frames as u64))
+        });
+    }
+    frames
+}
+
+#[test]
+fn capture_preserves_stereo_order_remaining_limit_and_partial_frame() {
+    let (mut producer, mut consumer) = rtrb::RingBuffer::<f32>::new(16);
+    let buffered = AtomicU64::new(3);
+    let mut samples = Vec::new();
+    for value in [1.0, 2.0, 3.0, 4.0, 5.0] {
+        producer.push(value).unwrap();
+    }
+    assert_eq!(capture_available_frames(&mut consumer, &buffered, &mut samples, 1), 1);
+    assert_eq!(samples, vec![1.0, 2.0]);
+    assert_eq!(buffered.load(Ordering::Relaxed), 2);
+    assert_eq!(capture_available_frames(&mut consumer, &buffered, &mut samples, 10), 1);
+    assert_eq!(consumer.slots(), 1);
+    assert_eq!(capture_available_frames(&mut consumer, &buffered, &mut samples, 10), 0);
+    producer.push(6.0).unwrap();
+    assert_eq!(capture_available_frames(&mut consumer, &buffered, &mut samples, 0), 0);
+    assert_eq!(capture_available_frames(&mut consumer, &buffered, &mut samples, 1), 1);
+    assert_eq!(samples, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+    assert_eq!(buffered.load(Ordering::Relaxed), 0);
+}
+
+#[test]
+fn capture_has_bounded_block_and_keeps_unconsumed_frames() {
+    let (mut producer, mut consumer) = rtrb::RingBuffer::<f32>::new(4096);
+    let buffered = AtomicU64::new(1500);
+    for _ in 0..3000 {
+        producer.push(0.0).unwrap();
+    }
+    let mut samples = Vec::new();
+    assert_eq!(capture_available_frames(&mut consumer, &buffered, &mut samples, 1500), 1024);
+    assert_eq!(buffered.load(Ordering::Relaxed), 476);
+    assert_eq!(samples.len(), 2048);
+    assert_eq!(capture_available_frames(&mut consumer, &buffered, &mut samples, 476), 476);
+    assert_eq!(buffered.load(Ordering::Relaxed), 0);
+    assert_eq!(samples.len(), 3000);
+}
+
 /// Drains until the handoff fires, returning the observed playhead.
 ///
 /// The playhead is the number a caller needs: the handoff is the engine

@@ -224,6 +224,29 @@ impl MixerState {
     pub(super) fn diagnostic_settings(&self) -> serde_json::Value {
         serde_json::json!({"sound_mode":format!("{:?}",self.sound_mode),"clarity_preset":format!("{:?}",self.clarity_tuning.preset),"clarity_wet":self.clarity_tuning.wet,"clarity_trims_db":self.clarity_tuning.trims_db,"manual_eq":self.eq.diagnostic_settings(),"loudness_mode":format!("{:?}",self.loudness_mode),"playback_speed":self.playback_speed,"application_volume":self.volume,"bit_perfect":self.bit_perfect,"spatial_enabled":self.spatial_enabled,"head_yaw":self.head_yaw,"skip_silence":self.skip_silence,"crossfade_seconds":self.crossfade_window_s,"underruns":self.underrun_counter.as_ref().map(|c|c.load(Ordering::Relaxed))})
     }
+    /// Abschluss erst nach vollständiger Ausgabe. Die letzte Positionsmeldung
+    /// zieht keine bereits abgespielte DSP-Latenz mehr ab. Die tatsächliche
+    /// Decoderposition bleibt massgeblich, nicht eine geschätzte Katalogdauer.
+    pub(super) fn finish_drained_voice(&mut self) {
+        if !self.playing { return; }
+        let (reason, source) = if let Some(voice) = self.current.as_ref() {
+            let failed = voice.decode_failed;
+            if !failed {
+                self.position_ms.store(
+                    (voice.emitted_position_seconds().max(0.0) * 1000.0) as u64,
+                    Ordering::Relaxed,
+                );
+            }
+            (if failed { crate::TrackEndReason::Error } else { crate::TrackEndReason::Natural },
+             voice.info.source.clone())
+        } else {
+            (crate::TrackEndReason::Natural, String::new())
+        };
+        self.playing = false;
+        self.set_state(crate::PlaybackState::Stopped);
+        self.events.track_ended(reason, source);
+    }
+
     pub(super) fn set_state(&mut self, state: crate::PlaybackState) {
         if self.state != state {
             self.state = state;

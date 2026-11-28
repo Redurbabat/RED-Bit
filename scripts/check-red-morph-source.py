@@ -27,6 +27,8 @@ stage = source("AppleApp/Sources/UI/NowPlaying/NowPlayingView+Stage.swift")
 transport = source("AppleApp/Sources/UI/NowPlaying/NowPlayingView+Transport.swift")
 layouts = source("AppleApp/Sources/UI/NowPlaying/NowPlayingView+Layouts.swift")
 catalog = json.loads(source("AppleApp/Resources/Localization/Localizable.xcstrings"))
+player = source("AppleApp/Sources/UI/NowPlaying/NowPlayingView.swift")
+arc = source("AppleApp/Sources/UI/NowPlaying/ArcPlaybackDeck.swift")
 
 localization_keys = (
     "Search artists, songs and lyrics",
@@ -88,6 +90,20 @@ checks = {
         and ".modifier(NowPlayingZoomSource())" in pill
         and "matchedTransitionSource(id: NowPlayingZoom.sourceID" in pill
         and ".navigationTransition(.zoom(sourceID: NowPlayingZoom.sourceID" in root
+    ),
+    "Pause bleibt auf allen Mini-Player-Plattformen bedienbar": (
+        pill.count('accessibilityIdentifier("bbt.playback.pill.play")') == 3
+        and pill.count("transportGlyph(size:") == 4
+        and 'controller.isPlaying || controller.isBuffering ? "Pause" : "Play"' in pill
+        and 'controller.isPlaying || controller.isBuffering ? "Pause" : "Play"' in transport
+        and 'controller.isPlaying || controller.isBuffering ? "Pause" : "Play"' in arc
+    ),
+    "Direktzugriff auf Queue und Lyrics auch beim ersten Öffnen": (
+        "revealPane(.queue)" in pill and "revealPane(.lyrics)" in pill
+        and "appModel.queueRevealRequested = pane == .queue" in pill
+        and "appModel.lyricsRevealRequested = pane == .lyrics" in pill
+        and ".onChange(of: appModel.queueRevealRequested, initial: true)" in player
+        and ".onChange(of: appModel.lyricsRevealRequested, initial: true)" in player
     ),
     "Reduce Motion im Player-Layout": (
         "reduceMotion ? nil : .easeInOut" in layouts

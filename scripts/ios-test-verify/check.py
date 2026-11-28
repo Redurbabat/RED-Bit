@@ -245,6 +245,25 @@ class ProjectTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 prepare(project, project, REF, RUN)
 
+    def test_native_framework_caches_are_independent(self):
+        workflow = yaml.safe_load((ROOT / ".github/workflows/ios-sidestore-test.yml").read_text(encoding="utf-8"))
+        steps = workflow["jobs"]["ipa"]["steps"]
+        keys = next(step for step in steps if step.get("id") == "native_keys")
+        self.assertIn("--fingerprint", keys["run"])
+        self.assertIn("legacy-$SOURCE_SHA", keys["run"])
+        for kind in ("kotlin", "rust"):
+            restore = next(step for step in steps if step.get("id") == kind + "_cache")
+            build = next(step for step in steps if step.get("id") == kind + "_build")
+            save = next(step for step in steps if step.get("if") == f"steps.{kind}_build.outputs.rebuilt == 'true'")
+            key = restore["with"]["key"]
+            prefix = restore["with"]["restore-keys"].strip()
+            self.assertIn(f"steps.native_keys.outputs.{kind}", key)
+            self.assertIn(f"steps.native_keys.outputs.{kind}", prefix)
+            self.assertEqual(restore["with"]["path"], save["with"]["path"])
+            self.assertIn(f"steps.{kind}_cache.outputs.cache-primary-key", save["with"]["key"])
+            self.assertLess(steps.index(restore), steps.index(build))
+            self.assertLess(steps.index(build), steps.index(save))
+
     def test_workflow_limits_credentials_and_automatic_builds(self):
         workflow = yaml.safe_load((ROOT / ".github/workflows/ios-sidestore-test.yml").read_text(encoding="utf-8"))
         self.assertEqual(workflow["permissions"], {"contents": "read"})

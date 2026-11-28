@@ -204,21 +204,18 @@ struct PlaybackPill: View {
                 }
                 .disabled(!controller.canPlayPrevious)
 
-                if controller.isBuffering {
-                    ProgressView()
-                        .controlSize(.small)
+                Button {
+                    controller.togglePlayPause()
+                } label: {
+                    transportGlyph(size: 17)
                         .frame(width: 32, height: 32)
-                        .help("Loading")
-                } else {
-                    pillButton(
-                        controller.isPlaying ? "Pause" : "Play",
-                        system: controller.isPlaying ? "pause.fill" : "play.fill",
-                        glyph: 17
-                    ) {
-                        controller.togglePlayPause()
-                    }
-                    .disabled(controller.current == nil)
+                        .contentShape(.rect)
                 }
+                .buttonStyle(.plain)
+                .disabled(controller.current == nil && !controller.isBuffering)
+                .help(transportLabel)
+                .accessibilityLabel(transportLabel)
+                .accessibilityIdentifier("bbt.playback.pill.play")
 
                 pillButton("Next", system: "forward.fill") {
                     controller.next()
@@ -341,6 +338,31 @@ struct PlaybackPill: View {
     #endif
 
     // ---- Shared pieces ------------------------------------------------------
+
+    private var transportLabel: LocalizedStringKey {
+        controller.isPlaying || controller.isBuffering ? "Pause" : "Play"
+    }
+
+    /// Der Ladezustand bleibt ein bedienbarer Pause-Knopf, nicht nur ein
+    /// Spinner. Dieselbe Symbolik gilt auf iPhone, iPad und Mac.
+    private func transportGlyph(size: CGFloat) -> some View {
+        ZStack {
+            if controller.isBuffering {
+                ProgressView()
+                    .controlSize(.small)
+                    .scaleEffect(1.25)
+                    .accessibilityHidden(true)
+            }
+            Image(systemName: controller.isPlaying || controller.isBuffering ? "pause.fill" : "play.fill")
+                .scaledFont(size: controller.isBuffering ? size * 0.55 : size, weight: .semibold)
+        }
+    }
+
+    private func revealPane(_ pane: PlayerPane) {
+        appModel.queueRevealRequested = pane == .queue
+        appModel.lyricsRevealRequested = pane == .lyrics
+        appModel.nowPlayingPresented = true
+    }
 
     @ViewBuilder
     private var artworkOrPlaceholder: some View {
@@ -475,8 +497,7 @@ struct PlaybackPill: View {
 
     private var queueButton: some View {
         Button {
-            PlatformSettings.shared.putString(key: "last_player_screen", value: "QUEUE")
-            appModel.nowPlayingPresented = true
+            revealPane(.queue)
         } label: {
             Image(.bchQueue)
                 .resizable()
@@ -536,6 +557,7 @@ struct PlaybackPill: View {
                 .frame(maxHeight: .infinity, alignment: .bottom)
         }
         .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 
     #if os(iOS)
@@ -616,15 +638,13 @@ struct PlaybackPill: View {
         Divider()
 
         Button {
-            PlatformSettings.shared.putString(key: "last_player_screen", value: "QUEUE")
-            appModel.nowPlayingPresented = true
+            revealPane(.queue)
         } label: {
             Label("Queue", systemImage: "list.bullet")
         }
 
         Button {
-            PlatformSettings.shared.putString(key: "last_player_screen", value: "LYRICS")
-            appModel.nowPlayingPresented = true
+            revealPane(.lyrics)
         } label: {
             Label("Lyrics", systemImage: "quote.bubble")
         }
@@ -639,23 +659,16 @@ struct PlaybackPill: View {
     private var buttons: some View {
         HStack(spacing: inline ? 2 : 8) {
             Button {
-                Haptics.play(controller.isPlaying ? .pause : .resume)
+                Haptics.play(controller.isPlaying || controller.isBuffering ? .pause : .resume)
                 controller.togglePlayPause()
             } label: {
-                Group {
-                    if controller.isBuffering {
-                        ProgressView().controlSize(.small).frame(width: 22, height: 22)
-                    } else {
-                        Image(systemName: controller.isPlaying ? "pause.fill" : "play.fill")
-                            .scaledFont(size: 20, weight: .semibold)
-                    }
-                }
+                transportGlyph(size: 20)
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .disabled(controller.current == nil && !controller.isBuffering)
-            .accessibilityLabel(controller.isPlaying ? "Pause" : "Play")
+            .accessibilityLabel(transportLabel)
             .accessibilityIdentifier("bbt.playback.pill.play")
 
             Button {
@@ -696,24 +709,18 @@ struct PlaybackPill: View {
             .disabled(!controller.canPlayPrevious)
             .accessibilityLabel("Previous")
 
-            if controller.isBuffering {
-                ProgressView()
-                    .controlSize(.small)
-                    .frame(width: 34, height: 34)
-            } else {
-                Button {
-                    Haptics.play(controller.isPlaying ? .pause : .resume)
-                    controller.togglePlayPause()
-                } label: {
-                    Image(systemName: controller.isPlaying ? "pause.fill" : "play.fill")
-                        .scaledFont(size: 18, weight: .semibold)
-                        .frame(width: 34, height: 34)
-                        .contentShape(.rect)
-                }
-                .buttonStyle(.plain)
-                .disabled(controller.current == nil && !controller.isBuffering)
-                .accessibilityLabel(controller.isPlaying ? "Pause" : "Play")
+            Button {
+                Haptics.play(controller.isPlaying || controller.isBuffering ? .pause : .resume)
+                controller.togglePlayPause()
+            } label: {
+                transportGlyph(size: 18)
+                    .frame(width: 44, height: 44)
+                    .contentShape(.rect)
             }
+            .buttonStyle(.plain)
+            .disabled(controller.current == nil && !controller.isBuffering)
+            .accessibilityLabel(transportLabel)
+            .accessibilityIdentifier("bbt.playback.pill.play")
 
             Button {
                 guard controller.canPlayNext else { return }
@@ -738,8 +745,7 @@ struct PlaybackPill: View {
             playerActionsButton
 
             Button {
-                appModel.nowPlayingPresented = true
-                PlatformSettings.shared.putString(key: "last_player_screen", value: "LYRICS")
+                revealPane(.lyrics)
             } label: {
                 Image(.bchLyrics)
                     .resizable()

@@ -335,6 +335,7 @@ extension PlaybackController {
             remainingSeconds: outgoingDuration - position, transitionSeconds: fadeSeconds
         )
         nextPreparationTask = Task.detached(priority: .userInitiated) {
+            var sourcePrepared = false
             do {
                 let selection: ResolveOutcome
                 if let repeatedSource {
@@ -344,6 +345,8 @@ extension PlaybackController {
                 }
                 try Task.checkCancellation()
                 let outcome = try await Self.bufferPreparedSource(selection, mediaId: nextId)
+                sourcePrepared = true
+                try Task.checkCancellation()
                 let stillCurrent = await MainActor.run { [weak self] in
                     guard let self else { return false }
                     return self.playGeneration == generation
@@ -425,13 +428,19 @@ extension PlaybackController {
                         safetyPlan?.fadeSeconds ?? 0
                     )
                 }
-                guard automix, !currentSource.isEmpty else { return }
+                guard automix, !currentSource.isEmpty,
+                      !ProcessInfo.processInfo.isLowPowerModeEnabled else { return }
                 let fade = Double(PlatformSettings.shared.getInt(key: "crossfade_seconds", default: 0))
                 // ResolveSource returns when the progressive intro is on disk.
                 // Analyze it now against the queued safety overlap, then refresh
                 // the plan as more of either file arrives while the mixer is arming.
                 var attempt = 0
-                while true {
+                let analysisStarted = ProcessInfo.processInfo.systemUptime
+                while !ProcessInfo.processInfo.isLowPowerModeEnabled && PlaybackPreparationPolicy.shouldAnalyze(
+                    attempt: attempt, elapsed: ProcessInfo.processInfo.systemUptime - analysisStarted,
+                    outgoingDuration: outgoingDuration, position: engine.positionSeconds(),
+                    fadeSeconds: safetyFade
+                ) {
                     try Task.checkCancellation()
                     let stillPlanning = await MainActor.run { [weak self] in
                         guard let self else { return false }
@@ -439,6 +448,10 @@ extension PlaybackController {
                             && self.nextEntry?.id == nextId
                             && self.current?.id == outgoingId
                             && self.queueNextRevision == revision
+                            && PlaybackPreparationPolicy.allowsExtraAnalysis(
+                                active: self.state == .playing || self.state == .buffering,
+                                lowPower: ProcessInfo.processInfo.isLowPowerModeEnabled
+                            )
                     }
                     guard stillPlanning else { return }
                     // C's instrumentation: a transition is being armed against
@@ -467,6 +480,12 @@ extension PlaybackController {
                         let outOk = await MusicUnderstandingAnalyzer.analyzeAndSeed(
                             filePath: currentSource, allowAccelerator: allowMusicUnderstanding
                         )
+                        try Task.checkCancellation()
+                        guard !ProcessInfo.processInfo.isLowPowerModeEnabled, gate.isCurrent(generation, revision: revision),
+                              PlaybackPreparationPolicy.shouldAnalyze(
+                                attempt: attempt, elapsed: ProcessInfo.processInfo.systemUptime - analysisStarted,
+                                outgoingDuration: outgoingDuration, position: engine.positionSeconds(), fadeSeconds: safetyFade
+                              ) else { return }
                         let inOk = await MusicUnderstandingAnalyzer.analyzeAndSeed(
                             filePath: resolved.source, allowAccelerator: allowMusicUnderstanding
                         )
@@ -478,6 +497,12 @@ extension PlaybackController {
                             )
                         }
                     }
+                    try Task.checkCancellation()
+                    guard !ProcessInfo.processInfo.isLowPowerModeEnabled, gate.isCurrent(generation, revision: revision),
+                          PlaybackPreparationPolicy.shouldAnalyze(
+                            attempt: attempt, elapsed: ProcessInfo.processInfo.systemUptime - analysisStarted,
+                            outgoingDuration: outgoingDuration, position: engine.positionSeconds(), fadeSeconds: safetyFade
+                          ) else { return }
                     let rawPlan = engine.planAutomix(
                         outgoingPath: currentSource,
                         incomingPath: resolved.source,
@@ -495,6 +520,13 @@ extension PlaybackController {
                         plan: rawPlan, outgoingSource: currentSource, incomingSource: resolved.source,
                         outgoingDuration: outgoingDuration, incomingDuration: incomingDuration
                     )
+                    try Task.checkCancellation()
+                    guard !ProcessInfo.processInfo.isLowPowerModeEnabled,
+                          PlaybackPreparationPolicy.shouldAnalyze(
+                        attempt: attempt, elapsed: ProcessInfo.processInfo.systemUptime - analysisStarted,
+                        outgoingDuration: outgoingDuration, position: engine.positionSeconds(),
+                        fadeSeconds: max(plan.fadeSeconds, safetyFade)
+                    ) else { return }
                     let queued = try gate.performIfCurrent(generation: generation, revision: revision, {
                         self.pacing.note(plan.style, for: transitionPair)
                         return try engine.queueNextIfCurrent(request: LoadRequest(
@@ -568,9 +600,15 @@ extension PlaybackController {
                     PlaybackDebugLog.shared.record("next-track preparation failed: \(error.localizedDescription)", about: nextId)
                     // Found out minutes early, so the track after it is
                     // prepared in its place and the blend still happens.
-                    if self.markUnplayable(next, after: error) {
+                    if PlaybackPreparationPolicy.mayMarkUnplayable(sourcePrepared: sourcePrepared),
+                       self.markUnplayable(next, after: error) {
                         PlaybackDebugLog.shared.record("stepping over it; preparing the track after it instead", about: nextId)
                         self.syncEngineQueueNext()
+                    } else if sourcePrepared {
+                        // Bereits vorbereitete Quelle bleibt in der Queue;
+                        // das Sicherheits-Arm oder der normale EOS-Load
+                        // übernimmt statt eines unbegründeten Skip.
+                        self.debugLog.record("automix: prepared source retained after transition failure", about: nextId)
                     }
                 }
             }

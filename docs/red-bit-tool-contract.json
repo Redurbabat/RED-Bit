@@ -1,0 +1,201 @@
+{
+  "version": 1,
+  "app": "red-bit",
+  "transport": "local-app-intent",
+  "remoteAvailable": false,
+  "tools": [
+    {
+      "name": "redbit_read_status",
+      "description": "Read limited playback state.",
+      "scope": "status",
+      "readOnly": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "redbit_read_queue",
+      "description": "Read queue counts without song details.",
+      "scope": "status",
+      "readOnly": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "redbit_play",
+      "description": "Resume the selected track.",
+      "scope": "transport",
+      "readOnly": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "redbit_pause",
+      "description": "Pause playback.",
+      "scope": "transport",
+      "readOnly": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "redbit_next",
+      "description": "Request the next track.",
+      "scope": "transport",
+      "readOnly": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "redbit_previous",
+      "description": "Request the normal previous-track action.",
+      "scope": "transport",
+      "readOnly": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "redbit_set_volume",
+      "description": "Set app volume, not system volume.",
+      "scope": "transport",
+      "readOnly": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "percent": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          }
+        },
+        "required": [
+          "percent"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "redbit_seek",
+      "description": "Request an absolute position within a loaded track.",
+      "scope": "transport",
+      "readOnly": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "seconds": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "seconds"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "redbit_set_automix",
+      "description": "Set the saved Automix preference.",
+      "scope": "preferences",
+      "readOnly": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "redbit_set_equalizer",
+      "description": "Set the saved equalizer preference.",
+      "scope": "preferences",
+      "readOnly": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "redbit_set_quality",
+      "description": "Set streaming quality for the selected network.",
+      "scope": "preferences",
+      "readOnly": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "quality": {
+            "type": "string",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH",
+              "LOSSLESS"
+            ]
+          },
+          "metered": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "metered",
+          "quality"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "redbit_set_shuffle",
+      "description": "Set shuffle explicitly.",
+      "scope": "preferences",
+      "readOnly": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "additionalProperties": false
+      }
+    }
+  ]
+}

@@ -29,6 +29,7 @@ extension PlaybackController {
             || (state == .playing && newState == .paused) { return }
 #endif
         if state == .paused && newState == .stopped { return }
+        if state == .stopped, engineLoadedId == nil, newState == .paused || newState == .playing { return }
         state = newState
         if let current {
             nowPlaying.update(
@@ -148,10 +149,21 @@ extension PlaybackController {
                 confirmedFailure: true
             ) {
                 stopAfterFailedRecovery(source: source, confirmedFailure: true)
+                // Lokale Dateien können nicht frisch aus dem Netz aufgelöst werden.
+                // Ein Decoderfehler muss trotzdem sichtbar sein und darf nicht weiterschalten.
+                if state != .paused, let entry = current, engineLoadedId == entry.id,
+                   loadedSourcePath == source {
+                    let at = playbackPosition
+                    pausePlayback(releaseAudioSession: true)
+                    engineLoadedId = nil
+                    restoredStart = (entry.id, max(0, at - 0.25))
+                    reportPlaybackFailure(.engine, message: "Audio decoding failed. Press Play to retry.")
+                }
             }
             return
         }
         guard reason == .natural else { return }
+        guard engineLoadedId != nil || dolbyRenderer != nil else { return }
         // A natural end for a voice the transport already left (manual skip,
         // or a blend that already handed off) must not move or stop the new
         // selection. Empty source keeps backward compatibility with callers
@@ -199,12 +211,20 @@ extension PlaybackController {
                 loadCurrent(next, refreshAutoplay: false)
                 return
             }
-            state = .stopped
-            position = 0
-            nowPlaying.updateRate(0.0, position: 0)
-            nowPlaying.stop()
-            deactivateAudioSessionIfIdle()
+            if beginAutoplayEndWait() { return }
+            finishNaturalQueueEnd()
         }
+    }
+
+    func finishNaturalQueueEnd() {
+        state = .stopped
+        position = 0
+        nowPlaying.updateRate(0.0, position: 0)
+        nowPlaying.stop()
+        widgetPublisher.publish(entry: current, isPlaying: false,
+                                canNext: canPlayNext, canPrevious: canPlayPrevious)
+        persistSession()
+        deactivateAudioSessionIfIdle()
     }
 
     /// A "natural end" that is really a download that gave up part-way (the

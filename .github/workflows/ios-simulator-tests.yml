@@ -66,6 +66,7 @@ jobs:
         run: |
           bash scripts/check-network-errors.sh
           bash scripts/check-stream-recovery.sh
+          bash scripts/check-automix-live-test.sh
       - name: Parse changed Swift playback paths
         run: |
           xcrun swiftc -frontend -parse \
@@ -191,6 +192,7 @@ jobs:
         run: |
           bash scripts/check-network-errors.sh
           bash scripts/check-stream-recovery.sh
+          bash scripts/check-automix-live-test.sh
 
       - name: Build Kotlin/Native iPhone Simulator framework
         id: kotlin_framework

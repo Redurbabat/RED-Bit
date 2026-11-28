@@ -70,8 +70,14 @@ struct SettingsQualityPersist: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .onChange(of: wifiQuality) { _, value in AppSettings.shared.setAudioQualityWifi(value: value) }
-            .onChange(of: cellQuality) { _, value in AppSettings.shared.setAudioQualityCellular(value: value) }
+            .onChange(of: wifiQuality) { _, value in
+                guard PlatformSettings.shared.getString(key: "audio_quality_wifi", default: "LOSSLESS") != value else { return }
+                AppSettings.shared.setAudioQualityWifi(value: value)
+            }
+            .onChange(of: cellQuality) { _, value in
+                guard PlatformSettings.shared.getString(key: "audio_quality_cellular", default: "LOSSLESS") != value else { return }
+                AppSettings.shared.setAudioQualityCellular(value: value)
+            }
             .onChange(of: downloadQuality) { _, value in AppSettings.shared.setDownloadQuality(value: value) }
             .onChange(of: wifiOnlyDownloads) { _, value in
                 AppSettings.shared.setWifiOnlyDownloads(value: value)

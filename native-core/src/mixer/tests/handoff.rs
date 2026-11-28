@@ -606,7 +606,7 @@ fn cold_resume_seek_at_180_seconds_outputs_pcm_from_that_position() {
 /// the overlap, then settle back to 116 once the post-blend glide ends.
 #[test]
 fn a_beatmatched_blend_holds_the_grid_then_glides_home() {
-    let dir = std::env::temp_dir().join("redbit-mixer-beats");
+    let dir = std::env::temp_dir().join(format!("redbit-mixer-beats-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let a = dir.join("out.wav");
     let b = dir.join("in.wav");
@@ -696,36 +696,60 @@ fn a_beatmatched_blend_holds_the_grid_then_glides_home() {
 
     let want = rate * 28;
     let mut samples = Vec::with_capacity(want * 2);
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(120);
-    while samples.len() / 2 < want && std::time::Instant::now() < deadline {
-        match consumer.pop() {
-            Ok(sample) => {
-                samples.push(sample);
-                if samples.len() % 2 == 0 {
-                    let mut current = buffered.load(Ordering::Relaxed);
-                    while current > 0 {
-                        match buffered.compare_exchange_weak(
-                            current,
-                            current - 1,
-                            Ordering::Relaxed,
-                            Ordering::Relaxed,
-                        ) {
-                            Ok(_) => break,
-                            Err(v) => current = v,
-                        }
-                    }
-                }
+    // Die Audio-Zeit ist die Messgrösse, nicht die Laufzeit des CI-Rechners.
+    // Im Lauf 46155196072 lieferte der Debug-Build nach 120 s erst 26.2 s PCM.
+    // Langsame Fortschritte erhalten ein begrenztes Gesamtbudget; ein echter
+    // Stillstand oder vorzeitiges Ende wird weiterhin als Fehler gemeldet.
+    let started = Instant::now();
+    let mut last_progress = started;
+    let mut last_position = position.load(Ordering::Relaxed);
+    let deadline = started + std::time::Duration::from_secs(270);
+    let mut stop_reason = "capture complete";
+    while samples.len() / 2 < want {
+        let now = Instant::now();
+        if now >= deadline {
+            stop_reason = "absolute capture timeout";
+            break;
+        }
+        let remaining = want - samples.len() / 2;
+        let frames = capture_available_frames(&mut consumer, &buffered, &mut samples, remaining);
+        let played = position.load(Ordering::Relaxed);
+        if frames > 0 || played != last_position {
+            last_progress = now;
+            last_position = played;
+        } else {
+            if !samples.is_empty()
+                && buffered.load(Ordering::Relaxed) == 0
+                && events.states.lock().unwrap().last() == Some(&"stopped")
+            {
+                stop_reason = "playback stopped before capture completed";
+                break;
             }
-            Err(_) => std::thread::sleep(std::time::Duration::from_millis(2)),
+            if last_progress.elapsed() >= std::time::Duration::from_secs(45) {
+                stop_reason = "no PCM or playhead progress";
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(2));
         }
     }
     shutdown.store(true, Ordering::Relaxed);
     tx.send(Command::Shutdown).ok();
-    let _ = handle.join();
-    assert!(
-        samples.len() / 2 > rate * 27,
-        "only captured {:.1}s",
-        samples.len() as f64 / 2.0 / rate as f64
+    let joined = handle.join();
+    let _ = std::fs::remove_file(&a);
+    let _ = std::fs::remove_file(&b);
+    let _ = std::fs::remove_dir(&dir);
+    joined.expect("mixer thread panicked during beatmatching capture");
+    assert_eq!(
+        samples.len() / 2, want,
+        "{stop_reason}: captured {:.1}s of 28s in {:.1}s wall; position={}ms buffered={} frames states={:?} handoffs={:?} ended={:?} errors={:?}",
+        samples.len() as f64 / 2.0 / rate as f64,
+        started.elapsed().as_secs_f64(),
+        position.load(Ordering::Relaxed),
+        buffered.load(Ordering::Relaxed),
+        events.states.lock().unwrap(),
+        events.handoffs.lock().unwrap(),
+        events.ended.lock().unwrap(),
+        events.errors.lock().unwrap()
     );
 
     let onsets = |channel: usize, from_s: f64, until_s: f64| -> Vec<usize> {
@@ -1165,4 +1189,59 @@ fn retiring_the_stretch_drains_rather_than_drops() {
         voice.stretch.is_none(),
         "the stage should be gone after the drain"
     );
+}
+
+
+#[test]
+fn drained_end_reports_once_and_removes_playhead_processing_delay() {
+    let path = std::env::temp_dir().join(format!("redbit-drained-end-{}.wav", std::process::id()));
+    test_wav(&path, 2.0, 440.0);
+    let mut state = armed_test_state(&path, &path, Phase::Arming);
+    state.incoming = None;
+    state.transition = None;
+    let events = Arc::new(RecordedEvents::default());
+    state.events = events.clone();
+    let voice = state.current.as_mut().unwrap();
+    voice.decoder.seek_seconds(1.0).unwrap();
+    voice.finished = true;
+    voice.pending_dev.clear();
+    voice.pending_dev_cursor = 0;
+    let expected = (voice.emitted_position_seconds() * 1000.0) as u64;
+    state.position_ms.store(expected.saturating_sub(12), Ordering::Relaxed);
+    let (mut ring, mut consumer) = rtrb::RingBuffer::new(4096);
+    ring.push(0.1).unwrap();
+    ring.push(0.1).unwrap();
+    state.buffered_frames.store(1, Ordering::Relaxed);
+    super::super::render::render_available(&mut state, &mut ring);
+    assert!(events.ended.lock().unwrap().is_empty());
+    drain_available_frames(&mut consumer, &state.buffered_frames);
+    super::super::render::render_available(&mut state, &mut ring);
+    assert_eq!(*events.ended.lock().unwrap(), vec!["natural"]);
+    assert_eq!(state.position_ms.load(Ordering::Relaxed), expected);
+    state.finish_drained_voice();
+    assert_eq!(*events.ended.lock().unwrap(), vec!["natural"]);
+    drop(state);
+    std::fs::remove_file(path).unwrap();
+}
+
+#[test]
+fn failed_decoder_end_is_not_a_successful_queue_handoff() {
+    let path = std::env::temp_dir().join(format!("redbit-failed-end-{}.wav", std::process::id()));
+    test_wav(&path, 2.0, 440.0);
+    let mut state = armed_test_state(&path, &path, Phase::Arming);
+    state.transition = None;
+    let events = Arc::new(RecordedEvents::default());
+    state.events = events.clone();
+    let voice = state.current.as_mut().unwrap();
+    voice.finished = true;
+    voice.decode_failed = true;
+    voice.pending_dev.clear();
+    voice.pending_dev_cursor = 0;
+    let (mut ring, _) = rtrb::RingBuffer::new(4096);
+    super::super::render::render_available(&mut state, &mut ring);
+    assert_eq!(*events.ended.lock().unwrap(), vec!["error"]);
+    assert!(events.handoffs.lock().unwrap().is_empty());
+    assert!(!state.playing);
+    drop(state);
+    std::fs::remove_file(path).unwrap();
 }

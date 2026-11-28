@@ -119,7 +119,14 @@ struct EqualizerView: View {
             Spacer(minLength: 0)
         }
         .navigationTitle("Equalizer")
+        .onAppear {
+            enabled = PlatformSettings.shared.getBoolean(key: "equalizer_enabled", default: false)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .redBitAutomationPreferencesChanged)) { _ in
+            enabled = PlatformSettings.shared.getBoolean(key: "equalizer_enabled", default: false)
+        }
         .onChange(of: enabled) { _, value in
+            guard PlatformSettings.shared.getBoolean(key: "equalizer_enabled", default: false) != value else { return }
             PlatformSettings.shared.putBoolean(key: "equalizer_enabled", value: value)
             applyCurrent()
         }

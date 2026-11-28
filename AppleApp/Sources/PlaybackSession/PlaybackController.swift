@@ -159,6 +159,7 @@ final class PlaybackController {
     var sourceDecisionNotes: [String: String] = [:]
     @ObservationIgnored var streamRecovery = PlaybackRecoveryPolicy()
     @ObservationIgnored var outputWatchdog = PlaybackOutputWatchdog()
+    @ObservationIgnored var playbackStallTracker = PlaybackStallTracker()
     @ObservationIgnored var pendingPlaybackLatency: PlaybackLatencySample?
     @ObservationIgnored var nextPreparationTask: Task<Void, Never>?
     @ObservationIgnored var urlPrefetchTask: Task<Void, Never>?
@@ -322,6 +323,7 @@ final class PlaybackController {
     /// `id` of the track that was current when [repeatAllStash] was taken.
     var repeatAllStashSeed: String?
     @ObservationIgnored var autoplayRefresh = AutoplayRefreshState()
+    @ObservationIgnored var autoplayEndWait: AutoplayEndWait?
     @ObservationIgnored var autoplaySeeds = AutoplaySeedState()
     var automixPreviewRequest: AutomixPreviewRequest?
     var queuedAutomixPreviewRequest: AutomixPreviewRequest?
@@ -793,6 +795,7 @@ final class PlaybackController {
                 guard let self else { return }
                 for event in drainTechnicalEvents() { self.debugLog.record(event) }
                 self.pollWidgetCommands()
+                self.pollAutoplayEndWait()
                 self.pollStreamRecovery()
                 guard self.state == .playing else { return }
                 // Load/handoff snapshots precede the first rendered chunk. Refresh
@@ -867,24 +870,27 @@ final class PlaybackController {
     /// Repariert eine blockierte Ausgabe ohne Neuauflösung des Musikstreams.
     /// Die Transportgeneration schützt gegen Pause, Skip und neue Auswahl.
     func recoverStalledOutput() {
-        guard started, state == .playing, dolbyRenderer == nil else { return }
+        guard started, state == .playing, dolbyRenderer == nil, !smartMixInProgress else { return }
         let selection = playGeneration
         let intent = resumeGeneration
         let engine = self.engine
         debugLog.record("watchdog output recovery requested; bufferedFrames=\(engine.outputHealth().bufferedFrames)", about: current?.id)
         Task { [weak self] in
+            guard let self, self.state == .playing, self.dolbyRenderer == nil, !self.smartMixInProgress,
+                  self.playGeneration == selection, self.resumeGeneration == intent else { return }
             do {
                 _ = try await AudioSessionManager.activate()
-                guard let self, self.state == .playing, self.dolbyRenderer == nil,
+                guard self.state == .playing, self.dolbyRenderer == nil, !self.smartMixInProgress,
                       self.playGeneration == selection, self.resumeGeneration == intent else { return }
                 try engine.requestOutputRebuild(force: true)
                 self.debugLog.record("watchdog output rebuild requested", about: self.current?.id)
                 self.nowPlaying.requestPrimaryIfPossible(reason: "output watchdog")
             } catch {
-                guard let self, self.state == .playing,
+                guard self.state == .playing, !self.smartMixInProgress,
                       self.playGeneration == selection, self.resumeGeneration == intent else { return }
                 self.debugLog.record("watchdog output recovery failed", about: self.current?.id)
-                self.reportPlaybackFailure(.audioSession, message: "Audio output recovery failed. Pause and press Play to retry.")
+                self.pausePlayback(releaseAudioSession: true)
+                self.reportPlaybackFailure(.audioSession, message: "Audio output recovery failed. Press Play to retry.")
             }
         }
     }

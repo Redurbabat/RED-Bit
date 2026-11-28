@@ -13992,6 +13992,556 @@
         }
       }
     },
+    "Read RED Bit Playback Status" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RED Bit Wiedergabestatus lesen"
+          }
+        }
+      }
+    },
+    "Read limited playback status as JSON without song or account details." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Begrenzten Wiedergabestatus als JSON ohne Titel- oder Kontodaten lesen."
+          }
+        }
+      }
+    },
+    "Resume RED Bit" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RED Bit fortsetzen"
+          }
+        }
+      }
+    },
+    "Resume the selected track without toggling active playback." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ausgewählten Titel fortsetzen, ohne aktive Wiedergabe umzuschalten."
+          }
+        }
+      }
+    },
+    "Pause RED Bit" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RED Bit pausieren"
+          }
+        }
+      }
+    },
+    "Pause playback without starting a new track." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wiedergabe pausieren, ohne einen neuen Titel zu starten."
+          }
+        }
+      }
+    },
+    "Next RED Bit Track" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RED Bit nächster Titel"
+          }
+        }
+      }
+    },
+    "Request the next available queue entry." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nächsten verfügbaren Titel in der Warteschlange anfordern."
+          }
+        }
+      }
+    },
+    "Previous RED Bit Track" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RED Bit vorheriger Titel"
+          }
+        }
+      }
+    },
+    "Use the normal previous-track action in RED Bit." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Normale Zurück-Aktion in RED Bit ausführen."
+          }
+        }
+      }
+    },
+    "Set RED Bit Volume" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RED Bit Lautstärke einstellen"
+          }
+        }
+      }
+    },
+    "Set the app volume to a value from 0 to 100 percent." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App-Lautstärke auf einen Wert von 0 bis 100 Prozent einstellen."
+          }
+        }
+      }
+    },
+    "Volume (%)" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lautstärke (%)"
+          }
+        }
+      }
+    },
+    "Set RED Bit Volume: %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RED Bit Lautstärke einstellen: %@"
+          }
+        }
+      }
+    },
+    "Seek in RED Bit" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RED Bit Wiedergabeposition einstellen"
+          }
+        }
+      }
+    },
+    "Request a position in seconds within the loaded track." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Position in Sekunden innerhalb des geladenen Titels anfordern."
+          }
+        }
+      }
+    },
+    "Position (seconds)" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Position (Sekunden)"
+          }
+        }
+      }
+    },
+    "Seek in RED Bit: %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RED Bit Wiedergabeposition einstellen: %@"
+          }
+        }
+      }
+    },
+    "Set RED Bit Automix" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RED Bit Automix einstellen"
+          }
+        }
+      }
+    },
+    "Enable or disable Automix explicitly." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automix gezielt ein- oder ausschalten."
+          }
+        }
+      }
+    },
+    "Automix enabled" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automix aktiviert"
+          }
+        }
+      }
+    },
+    "Set RED Bit Automix: %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RED Bit Automix einstellen: %@"
+          }
+        }
+      }
+    },
+    "Read RED Bit Queue Summary" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RED Bit Warteschlangenübersicht lesen"
+          }
+        }
+      }
+    },
+    "Read queue counts without song details." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anzahl der Titel ohne Titeldaten lesen."
+          }
+        }
+      }
+    },
+    "Set RED Bit Equalizer" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RED Bit Equalizer einstellen"
+          }
+        }
+      }
+    },
+    "Enable or disable the saved equalizer setting." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gespeicherten Equalizer ein- oder ausschalten."
+          }
+        }
+      }
+    },
+    "Equalizer enabled" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Equalizer aktiviert"
+          }
+        }
+      }
+    },
+    "Set RED Bit Streaming Quality" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RED Bit Streamingqualität einstellen"
+          }
+        }
+      }
+    },
+    "Set LOW, MEDIUM, HIGH or LOSSLESS for the selected network." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LOW, MEDIUM, HIGH oder LOSSLESS für das gewählte Netz einstellen."
+          }
+        }
+      }
+    },
+    "Streaming quality" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Streamingqualität"
+          }
+        }
+      }
+    },
+    "Mobile data" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mobile Daten"
+          }
+        }
+      }
+    },
+    "Set RED Bit Shuffle" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RED Bit Zufallswiedergabe einstellen"
+          }
+        }
+      }
+    },
+    "Enable or disable shuffle without toggling it twice." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zufallswiedergabe gezielt ein- oder ausschalten."
+          }
+        }
+      }
+    },
+    "Shuffle enabled" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zufallswiedergabe aktiviert"
+          }
+        }
+      }
+    },
+    "RED Automation" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RED Automation"
+          }
+        }
+      }
+    },
+    "Local permissions" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lokale Freigaben"
+          }
+        }
+      }
+    },
+    "Read playback and queue status" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wiedergabe- und Warteschlangenstatus lesen"
+          }
+        }
+      }
+    },
+    "Control playback and volume" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wiedergabe und Lautstärke steuern"
+          }
+        }
+      }
+    },
+    "Change audio and shuffle settings" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Audio- und Zufallseinstellungen ändern"
+          }
+        }
+      }
+    },
+    "Status is required for action receipts. Turning it off also revokes both write permissions." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Statuszugriff ist für Aktionsquittungen erforderlich. Abschalten widerruft auch beide Schreibfreigaben."
+          }
+        }
+      }
+    },
+    "Remote MCP" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remote MCP"
+          }
+        }
+      }
+    },
+    "Not connected" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht verbunden"
+          }
+        }
+      }
+    },
+    "Local" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lokal"
+          }
+        }
+      }
+    },
+    "Apple Shortcuts" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Kurzbefehle"
+          }
+        }
+      }
+    },
+    "These permissions apply only to the new local RED Bit automation actions. Apple authentication remains required. Existing Siri actions and RED ID are unchanged." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Freigaben gelten nur für die neuen lokalen RED-Bit-Automatisierungen. Apple-Authentifizierung bleibt erforderlich. Bestehende Siri-Aktionen und RED ID bleiben unverändert."
+          }
+        }
+      }
+    },
+    "Revoke all automation permissions" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle Automatisierungsfreigaben widerrufen"
+          }
+        }
+      }
+    },
+    "Revoke all automation permissions?" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle Automatisierungsfreigaben widerrufen?"
+          }
+        }
+      }
+    },
+    "Future local automation calls will be rejected. Music and accounts are not deleted. Already requested operations may finish." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weitere lokale Automatisierungsaufrufe werden abgelehnt. Musik und Konten werden nicht gelöscht. Bereits angeforderte Vorgänge können noch enden."
+          }
+        }
+      }
+    },
+    "Local RED Bit automation is not authorized. Review permissions in Settings." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lokale RED-Bit-Automatisierung ist nicht freigegeben. Prüfe die Freigaben in den Einstellungen."
+          }
+        }
+      }
+    },
+    "Invoke RED Bit Tool" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RED Bit Werkzeug aufrufen"
+          }
+        }
+      }
+    },
+    "Call a documented local RED Bit tool with JSON arguments." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dokumentiertes lokales RED-Bit-Werkzeug mit JSON-Argumenten aufrufen."
+          }
+        }
+      }
+    },
+    "Tool name" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Werkzeugname"
+          }
+        }
+      }
+    },
+    "JSON arguments" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JSON-Argumente"
+          }
+        }
+      }
+    },
+    "Unknown RED Bit automation tool." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unbekanntes RED-Bit-Werkzeug."
+          }
+        }
+      }
+    },
+    "Invalid RED Bit automation arguments." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ungültige RED-Bit-Argumente."
+          }
+        }
+      }
+    },
     "Playback position" : {
       "localizations" : {
         "de" : {

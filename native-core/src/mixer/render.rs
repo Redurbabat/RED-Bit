@@ -165,7 +165,11 @@ pub(super) fn render_available(state: &mut MixerState, ring: &mut Producer<f32>)
             .as_ref()
             .is_some_and(|c| c.finished && c.pending_dev_cursor >= c.pending_dev.len());
         if current_finished && state.transition.is_none() {
-            if state.incoming.is_some() {
+            if state.current.as_ref().is_some_and(|voice| voice.decode_failed) {
+                // Ein Decoderabbruch ist kein natürlicher Queue-Wechsel.
+                state.incoming = None;
+                state.pending_next = None;
+            } else if state.incoming.is_some() {
                 state.promote_incoming();
             } else if state.pending_next.is_some() {
                 state.promote_pending();
@@ -312,19 +316,7 @@ pub(super) fn render_available(state: &mut MixerState, ring: &mut Producer<f32>)
                 || state.transition.is_some();
             let ring_drained = state.buffered_frames.load(Ordering::Relaxed) == 0;
             if !any_pending && ring_drained && state.retiring.is_empty() {
-                if state.playing {
-                    log::info!("queue drained; natural end");
-                    state.playing = false;
-                    state.set_state(crate::PlaybackState::Stopped);
-                    state.events.track_ended(
-                        crate::TrackEndReason::Natural,
-                        state
-                            .current
-                            .as_ref()
-                            .map(|v| v.info.source.clone())
-                            .unwrap_or_default(),
-                    );
-                }
+                state.finish_drained_voice();
                 break;
             }
         }
@@ -541,16 +533,7 @@ pub(super) fn render_bitperfect_available(state: &mut MixerState, ring: &mut Pro
         if frame_count == 0 {
             let exhausted = state.current.as_ref().is_none_or(|voice| voice.finished);
             if exhausted && state.buffered_frames.load(Ordering::Relaxed) == 0 {
-                state.playing = false;
-                state.set_state(crate::PlaybackState::Stopped);
-                state.events.track_ended(
-                    crate::TrackEndReason::Natural,
-                    state
-                        .current
-                        .as_ref()
-                        .map(|v| v.info.source.clone())
-                        .unwrap_or_default(),
-                );
+                state.finish_drained_voice();
             }
             break;
         }

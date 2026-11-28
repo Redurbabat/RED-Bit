@@ -32,7 +32,9 @@ concurrency:
 
 jobs:
   ipa:
-    if: github.event_name == 'workflow_dispatch' || (vars.BBT_IOS_TEST_AUTO_BUILD == 'true' && vars.BBT_IOS_TEST_BRANCH != '' && github.ref_name == vars.BBT_IOS_TEST_BRANCH)
+    # Ein explizit markierter Testcommit auf dem Diagnosebranch darf einmal bauen.
+    # Der globale Auto-Build-Schalter bleibt verbindlich.
+    if: github.event_name == 'workflow_dispatch' || (vars.BBT_IOS_TEST_AUTO_BUILD == 'true' && ((vars.BBT_IOS_TEST_BRANCH != '' && github.ref_name == vars.BBT_IOS_TEST_BRANCH) || (github.ref_name == 'feat/red-bit-audio-continuity-20261128' && contains(github.event.head_commit.message, '[iphone-test]'))))
     runs-on: macos-26
     timeout-minutes: 120
     env:
@@ -79,9 +81,50 @@ jobs:
           python3 -m pip install --user --break-system-packages PyYAML==6.0.3
       - name: Paketprüfung mit Gegenproben ausführen
         run: python3 infrastructure/scripts/ios-test-verify/check.py
-      - name: Native Zwischenergebnisse wiederverwenden
-        id: native_cache
+      - name: Native Quell- und Toolchain-Schlüssel berechnen
+        id: native_keys
+        working-directory: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x gradlew scripts/build-shared-framework.sh scripts/build-native-core.sh
+          for kind in kotlin rust; do
+            if grep -q -- '--fingerprint' scripts/ci-ios-native-cache.sh; then
+              key="$(bash scripts/ci-ios-native-cache.sh "$kind" --fingerprint)"
+              [[ "$key" =~ ^[0-9a-f]{64}$ ]]
+            else
+              # Ältere ausgewählte Quellrevisionen kennen den Modus nicht.
+              # Ihre eigene Cache-Prüfung bleibt verbindlich.
+              key="legacy-$SOURCE_SHA"
+            fi
+            printf '%s=%s\n' "$kind" "$key" >> "$GITHUB_OUTPUT"
+          done
+      - name: kotlin Framework-Cache gezielt wiederherstellen
+        id: kotlin_cache
         uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.cache/bbt-bit/ios-frameworks/kotlin.tar.gz
+            ~/.cache/bbt-bit/ios-frameworks/kotlin.key
+            ~/.cache/bbt-bit/ios-frameworks/kotlin.archive-sha256
+          key: bbt-ios-framework-kotlin-${{ runner.os }}-${{ runner.arch }}-${{ steps.native_keys.outputs.kotlin }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            bbt-ios-framework-kotlin-${{ runner.os }}-${{ runner.arch }}-${{ steps.native_keys.outputs.kotlin }}-
+      - name: rust Framework-Cache gezielt wiederherstellen
+        id: rust_cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.cache/bbt-bit/ios-frameworks/rust.tar.gz
+            ~/.cache/bbt-bit/ios-frameworks/rust.key
+            ~/.cache/bbt-bit/ios-frameworks/rust.archive-sha256
+          key: bbt-ios-framework-rust-${{ runner.os }}-${{ runner.arch }}-${{ steps.native_keys.outputs.rust }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            bbt-ios-framework-rust-${{ runner.os }}-${{ runner.arch }}-${{ steps.native_keys.outputs.rust }}-
+      - name: Native Abhängigkeiten für Cache-Fehlschläge wiederverwenden
+        id: native_dependencies
+        if: steps.kotlin_cache.outputs.cache-matched-key == '' || steps.rust_cache.outputs.cache-matched-key == ''
+        uses: actions/cache@v4
         with:
           path: |
             ~/.gradle/caches
@@ -89,20 +132,51 @@ jobs:
             ~/.konan
             ~/.cargo/registry
             ~/.cargo/git
-            ~/.cache/bbt-bit/ios-frameworks
-          key: bbt-sidestore-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('source/gradle/**', 'source/**/*.gradle.kts', 'source/native-core/Cargo.lock', 'source/native-core/Cargo.toml') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: bbt-ios-dependencies-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('source/gradle/**', 'source/**/*.gradle.kts', 'source/native-core/Cargo.lock', 'source/native-core/Cargo.toml') }}
           restore-keys: |
-            bbt-sidestore-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('source/gradle/**', 'source/**/*.gradle.kts', 'source/native-core/Cargo.lock', 'source/native-core/Cargo.toml') }}-
-            bbt-sidestore-${{ runner.os }}-${{ runner.arch }}-
-      - name: Kotlin und Rust für das echte iPhone bauen
+            bbt-ios-dependencies-${{ runner.os }}-${{ runner.arch }}-
+      - name: kotlin Framework prüfen oder bauen
+        id: kotlin_build
         working-directory: source
         shell: bash
         run: |
           set -euo pipefail
-          # Ausführungsrechte werden nur im flüchtigen Checkout gesetzt.
-          chmod +x gradlew scripts/build-shared-framework.sh scripts/build-native-core.sh
-          bash scripts/ci-ios-native-cache.sh kotlin
-          bash scripts/ci-ios-native-cache.sh rust
+          log="$RUNNER_TEMP/native-kotlin.log"
+          bash scripts/ci-ios-native-cache.sh kotlin | tee "$log"
+          if grep -qx 'BBT_NATIVE_CACHE_MISS=kotlin' "$log"; then
+            echo "rebuilt=true" >> "$GITHUB_OUTPUT"
+          fi
+          grep -E '^BBT_NATIVE_(CACHE_(HIT|MISS)|SECONDS_)' "$log" >> "$GITHUB_STEP_SUMMARY"
+      - name: Geprüftes kotlin Framework sofort sichern
+        if: steps.kotlin_build.outputs.rebuilt == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/.cache/bbt-bit/ios-frameworks/kotlin.tar.gz
+            ~/.cache/bbt-bit/ios-frameworks/kotlin.key
+            ~/.cache/bbt-bit/ios-frameworks/kotlin.archive-sha256
+          key: ${{ steps.kotlin_cache.outputs.cache-primary-key }}
+      - name: rust Framework prüfen oder bauen
+        id: rust_build
+        working-directory: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/native-rust.log"
+          bash scripts/ci-ios-native-cache.sh rust | tee "$log"
+          if grep -qx 'BBT_NATIVE_CACHE_MISS=rust' "$log"; then
+            echo "rebuilt=true" >> "$GITHUB_OUTPUT"
+          fi
+          grep -E '^BBT_NATIVE_(CACHE_(HIT|MISS)|SECONDS_)' "$log" >> "$GITHUB_STEP_SUMMARY"
+      - name: Geprüftes rust Framework sofort sichern
+        if: steps.rust_build.outputs.rebuilt == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/.cache/bbt-bit/ios-frameworks/rust.tar.gz
+            ~/.cache/bbt-bit/ios-frameworks/rust.key
+            ~/.cache/bbt-bit/ios-frameworks/rust.archive-sha256
+          key: ${{ steps.rust_cache.outputs.cache-primary-key }}
       - name: Separate SideStore-Testkonfiguration erzeugen
         shell: bash
         run: |
@@ -187,15 +261,3 @@ jobs:
           path: source/build/iphone-test/build.log
           if-no-files-found: ignore
           retention-days: 3
-      - name: Native Zwischenergebnisse auch nach späterem Buildfehler sichern
-        if: ${{ !cancelled() && steps.native_cache.outcome == 'success' && steps.native_cache.outputs.cache-primary-key != '' }}
-        uses: actions/cache/save@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-            ~/.konan
-            ~/.cargo/registry
-            ~/.cargo/git
-            ~/.cache/bbt-bit/ios-frameworks
-          key: ${{ steps.native_cache.outputs.cache-primary-key }}

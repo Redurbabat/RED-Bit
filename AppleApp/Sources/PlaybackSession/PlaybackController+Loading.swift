@@ -14,6 +14,7 @@ import AppKit
 extension PlaybackController {
     func loadCurrent(_ index: Int, startAt: Double? = nil, refreshAutoplay: Bool = true, freshResolution: Bool = false, reuseCurrentSource: Bool = false) {
         guard queue.indices.contains(index) else { return }
+        cancelAutoplayEndWait()
         startEngineIfNeeded()
         let engineStartupTask = self.engineStartupTask
         let entry = queue[index]
