@@ -14,6 +14,7 @@ import AppKit
 extension PlaybackController {
     func audioInterruptionBegan() {
         guard isPlaying || isBuffering else { return }
+        debugLog.record("playback pause cause=system-interruption", about: current?.id)
         pausePlayback(releaseAudioSession: true)
         wasInterrupted = true
     }
@@ -21,6 +22,7 @@ extension PlaybackController {
     func audioInterruptionEnded(shouldResume: Bool) {
         let resumePending = wasInterrupted
         wasInterrupted = false
+        debugLog.record("system interruption ended resumePending=\(resumePending) shouldResume=\(shouldResume)", about: current?.id)
         guard resumePending, shouldResume, state == .paused else { return }
         togglePlayPause()
     }

@@ -44,3 +44,35 @@ struct PlaybackRecoveryPolicy {
         return true
     }
 }
+
+/// Überwacht die Audio-Ausgabe getrennt von der Netzwerkquelle.
+/// Eine Reparatur pro Auswahl, keine Endlosschleife bei defekter Hardware.
+struct PlaybackOutputWatchdog {
+    private var selection: UInt64?
+    private var position: Double?
+    private var blockedSince: TimeInterval?
+    private var attempted = false
+
+    mutating func observe(selection: UInt64, position: Double, now: TimeInterval,
+                          playing: Bool, bufferedFrames: UInt64) -> Bool {
+        if self.selection != selection {
+            self.selection = selection
+            self.position = nil
+            blockedSince = nil
+            attempted = false
+        }
+        guard playing, position.isFinite, now.isFinite, bufferedFrames > 0 else {
+            self.position = nil
+            blockedSince = nil
+            return false
+        }
+        if self.position == nil || abs(position - (self.position ?? position)) > 0.02 {
+            self.position = position
+            blockedSince = now
+            return false
+        }
+        guard !attempted, now - (blockedSince ?? now) >= 12 else { return false }
+        attempted = true
+        return true
+    }
+}

@@ -39,3 +39,11 @@ Vor Implementierung jeweils vorhandenen Code inventarisieren; nicht als fehlend 
 
 ## Abnahme
 Jeder Bereich bekommt Quellnachweis, Tests, SHA, Build/Plattform, Status und bekannte Grenzen. Nicht getestete Funktionen bleiben offen. Keine Freigabe allein anhand eines grünen Konfigurations- oder Fixture-Tests.
+
+## 28.11.2026 – Umsetzung Audio-Watchdog
+
+- Ausgabe-Watchdog getrennt vom Stream: 12 s ohne Positionsfortschritt bei nichtleerem Ring, maximal eine automatische Ausgabereparatur je Ladegeneration. Keine Ausgabereparatur während Pause, Buffering, Dolby oder Smart-Mix. Kein erneuter URL-Abruf für diesen Pfad.
+- Reconnect nutzt das vorhandene Budget erst beim tatsächlichen Neu-Load; erschöpftes Budget pausiert mit gespeichertem Wiederanlaufpunkt.
+- Diagnose ergänzt um Underruns, Rebuilds, Xruns, Sessionstatus und System-/Geräteunterbrechungsgründe.
+- Policy-Regressionen für Wartezeit, Pausen, Fortschritt, leeren Puffer und begrenzte Reparatur. Keine Geräteabnahme behauptet.
+- Weitere Roadmap-Bereiche bleiben offen; insbesondere native UI, Sync, MCP, RED DJ und IPA müssen separat abgenommen werden.

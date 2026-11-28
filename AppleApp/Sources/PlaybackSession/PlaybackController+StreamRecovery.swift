@@ -8,16 +8,36 @@ extension PlaybackController {
     func pollStreamRecovery() {
         if let pending = deferredNetworkRecovery {
             guard NetworkQuality.shared.connected else { return }
-            deferredNetworkRecovery = nil
             if current?.id == pending.entryID, playGeneration == pending.generation, state == .buffering {
+                // Offlinezeit kostet keinen Versuch; der anschliessende
+                // tatsächliche Neu-Load schon. Auch häufige Netzwechsel
+                // dürfen das Budget nicht umgehen.
+                guard streamRecovery.claimRetry(position: pending.position, duration: 0, confirmedFailure: true) else {
+                    debugLog.record("network recovery budget exhausted at position=\(pending.position)", about: pending.entryID)
+                    pausePlayback()
+                    reportPlaybackFailure(.streamRecovery, message: "Automatic stream recovery failed. Press Play to retry.")
+                    return
+                }
+                deferredNetworkRecovery = nil
+                if let source = loadedSourcePath { wakeGrowingReader(source) }
                 engineLoadedId = nil
                 streamRecovery.select(pending.entryID, resetAttempts: false)
                 recoveringEntryID = pending.entryID
+                QualityUpgrade.forget(pending.entryID)
                 SourceResolverBridge.shared.refreshPlaybackSources()
                 if let entry = current, let videoID = youtubeVideoID(for: entry) { PlayerBridge.shared.forgetPlaybackUrl(videoId: videoID) }
                 loadCurrent(playingIndex, startAt: pending.position, refreshAutoplay: false, freshResolution: true)
                 return
             }
+            deferredNetworkRecovery = nil
+        }
+        let now = ProcessInfo.processInfo.systemUptime
+        let health = engine.outputHealth()
+        if outputWatchdog.observe(selection: playGeneration, position: playbackPosition, now: now,
+                                  playing: state == .playing && !smartMixInProgress && dolbyRenderer == nil && engineLoadedId != nil,
+                                  bufferedFrames: health.bufferedFrames) {
+            recoverStalledOutput()
+            return
         }
         // The range downloader waits for connectivity at its current offset.
         // An outage must not consume the two source-recovery attempts.
@@ -46,7 +66,7 @@ extension PlaybackController {
         let stalled = streamRecovery.observe(
             position: playbackPosition, now: ProcessInfo.processInfo.systemUptime,
             playing: state == .playing && !smartMixInProgress && dolbyRenderer == nil,
-            bufferedFrames: engine.outputHealth().bufferedFrames
+            bufferedFrames: health.bufferedFrames
         )
         if stalled, let source = loadedSourcePath {
             if !recoverInterruptedStream(source: source, explanation: "The stream stopped delivering audio; requesting a fresh stream.") {
@@ -93,7 +113,12 @@ extension PlaybackController {
             parts.append("complete=\(files.fileExists(atPath: source + ".complete"))")
             parts.append("failed=\(files.fileExists(atPath: source + ".failed"))")
         }
-        parts.append("bufferedFrames=\(engine.outputHealth().bufferedFrames)")
+        let health = engine.outputHealth()
+        parts.append("bufferedFrames=\(health.bufferedFrames)")
+        parts.append("underruns=\(health.callbackUnderruns)")
+        parts.append("outputRebuilds=\(health.outputRebuilds)")
+        parts.append("outputXruns=\(health.outputXruns)")
+        parts.append("sessionActive=\(AudioSessionManager.isActive)")
         parts.append("network=\(NetworkQuality.shared.connected ? "up" : "down")")
         #if canImport(UIKit)
         parts.append("app=\(UIApplication.shared.applicationState.rawValue)")

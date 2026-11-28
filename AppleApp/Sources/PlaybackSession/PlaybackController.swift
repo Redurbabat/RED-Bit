@@ -158,6 +158,7 @@ final class PlaybackController {
     var recoveryNeedsFreshResolution = false
     var sourceDecisionNotes: [String: String] = [:]
     @ObservationIgnored var streamRecovery = PlaybackRecoveryPolicy()
+    @ObservationIgnored var outputWatchdog = PlaybackOutputWatchdog()
     @ObservationIgnored var pendingPlaybackLatency: PlaybackLatencySample?
     @ObservationIgnored var nextPreparationTask: Task<Void, Never>?
     @ObservationIgnored var urlPrefetchTask: Task<Void, Never>?
@@ -601,6 +602,7 @@ final class PlaybackController {
             onOldDeviceUnavailable: { [weak self] in
                 Task { @MainActor in
                     guard let self, self.isPlaying || self.isBuffering || self.wasInterrupted else { return }
+                    self.debugLog.record("playback pause cause=output-device-unavailable", about: self.current?.id)
                     self.pausePlayback()
                 }
             }
@@ -858,6 +860,31 @@ final class PlaybackController {
                           self.resumeGeneration == intent else { return }
                     self.audioActivationFailed(error)
                 }
+            }
+        }
+    }
+
+    /// Repariert eine blockierte Ausgabe ohne Neuauflösung des Musikstreams.
+    /// Die Transportgeneration schützt gegen Pause, Skip und neue Auswahl.
+    func recoverStalledOutput() {
+        guard started, state == .playing, dolbyRenderer == nil else { return }
+        let selection = playGeneration
+        let intent = resumeGeneration
+        let engine = self.engine
+        debugLog.record("watchdog output recovery requested; bufferedFrames=\(engine.outputHealth().bufferedFrames)", about: current?.id)
+        Task { [weak self] in
+            do {
+                _ = try await AudioSessionManager.activate()
+                guard let self, self.state == .playing, self.dolbyRenderer == nil,
+                      self.playGeneration == selection, self.resumeGeneration == intent else { return }
+                try engine.requestOutputRebuild(force: true)
+                self.debugLog.record("watchdog output rebuild requested", about: self.current?.id)
+                self.nowPlaying.requestPrimaryIfPossible(reason: "output watchdog")
+            } catch {
+                guard let self, self.state == .playing,
+                      self.playGeneration == selection, self.resumeGeneration == intent else { return }
+                self.debugLog.record("watchdog output recovery failed", about: self.current?.id)
+                self.reportPlaybackFailure(.audioSession, message: "Audio output recovery failed. Pause and press Play to retry.")
             }
         }
     }
