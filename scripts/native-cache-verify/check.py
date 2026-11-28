@@ -37,6 +37,14 @@ cat shared/src/main.kt vendor/innertubex/src/main.kt vendor/innertubex/build.gra
 printf 'build\n' >> build-count
 """)
             write("native-core/src/lib.rs", "rust-v1")
+            write("scripts/build-native-core.sh", """#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+mkdir -p AppleApp/Frameworks/NativeCoreFFI.xcframework AppleApp/Generated
+cat native-core/src/lib.rs > AppleApp/Frameworks/NativeCoreFFI.xcframework/evidence
+printf 'bindings\n' > AppleApp/Generated/NativeCore.swift
+printf 'build\n' >> rust-build-count
+""")
             for name in ("xcodebuild", "java", "rustc", "cargo"):
                 write(f"tools/{name}", "#!/usr/bin/env bash\nprintf 'fixture-toolchain-v1\\n'\n")
             if os.name == "nt":
@@ -56,28 +64,33 @@ printf 'build\n' >> build-count
                 self.assertRegex(value, r"^[0-9a-f]{64}$")
                 return value
 
-            def run(expected, count):
+            def run(expected, count, kind="kotlin"):
                 # Relative Pfade funktionieren in Git Bash, Linux und macOS gleich.
                 result = subprocess.run(
                     [BASH, "-c", 'export PATH="$PWD/tools:$PATH" JAVA_HOME="$PWD/tools" '
-                     'BBT_IOS_FRAMEWORK_CACHE_DIR="$PWD/cache"; bash scripts/ci-ios-native-cache.sh kotlin'],
+                     'BBT_IOS_FRAMEWORK_CACHE_DIR="$PWD/cache"; bash scripts/ci-ios-native-cache.sh "$1"', "_", kind],
                     cwd=root, text=True, encoding="utf-8", capture_output=True,
                 )
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-                self.assertIn(f"BBT_NATIVE_CACHE_{expected}=kotlin", result.stdout)
-                self.assertEqual(len((root / "build-count").read_text().splitlines()), count)
-                return (root / "AppleApp/Frameworks/RedBitShared.xcframework/evidence").read_text()
+                self.assertIn(f"BBT_NATIVE_CACHE_{expected}={kind}", result.stdout)
+                counter = "build-count" if kind == "kotlin" else "rust-build-count"
+                framework = "RedBitShared" if kind == "kotlin" else "NativeCoreFFI"
+                self.assertEqual(len((root / counter).read_text().splitlines()), count)
+                return (root / f"AppleApp/Frameworks/{framework}.xcframework/evidence").read_text()
 
             kotlin_key, rust_key = fingerprint(), fingerprint("rust")
             self.assertFalse((root / "cache").exists(), "Nur Schlüssel berechnen erzeugt keinen Cache")
             run("MISS", 1)
             run("HIT", 1)
+            run("MISS", 1, "rust")
+            run("HIT", 1, "rust")
             write("AppleApp/Sources/View.swift", "view-v2")
             self.assertEqual((fingerprint(), fingerprint("rust")), (kotlin_key, rust_key))
             run("HIT", 1)
             write("vendor/innertubex/src/main.kt", "extractor-v2")
             self.assertNotEqual(fingerprint(), kotlin_key)
             self.assertEqual(fingerprint("rust"), rust_key)
+            run("HIT", 1, "rust")
             self.assertIn("extractor-v2", run("MISS", 2))
             run("HIT", 2)
             write("vendor/innertubex/build.gradle.kts", "configuration-v2")
@@ -88,6 +101,8 @@ printf 'build\n' >> build-count
             write("native-core/src/lib.rs", "rust-v2")
             self.assertEqual(fingerprint(), current)
             self.assertNotEqual(fingerprint("rust"), rust_key)
+            self.assertIn("rust-v2", run("MISS", 2, "rust"))
+            run("HIT", 4)
             write("local.properties", "LISTEN_TOGETHER_SERVER=fixture")
             self.assertNotEqual(fingerprint(), current)
             run("MISS", 5)

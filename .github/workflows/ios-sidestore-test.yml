@@ -86,8 +86,17 @@ jobs:
         run: |
           set -euo pipefail
           chmod +x gradlew scripts/build-shared-framework.sh scripts/build-native-core.sh
-          echo "kotlin=$(bash scripts/ci-ios-native-cache.sh kotlin --fingerprint)" >> "$GITHUB_OUTPUT"
-          echo "rust=$(bash scripts/ci-ios-native-cache.sh rust --fingerprint)" >> "$GITHUB_OUTPUT"
+          for kind in kotlin rust; do
+            if grep -q -- '--fingerprint' scripts/ci-ios-native-cache.sh; then
+              key="$(bash scripts/ci-ios-native-cache.sh "$kind" --fingerprint)"
+              [[ "$key" =~ ^[0-9a-f]{64}$ ]]
+            else
+              # Ältere ausgewählte Quellrevisionen kennen den Modus nicht.
+              # Ihre eigene Cache-Prüfung bleibt verbindlich.
+              key="legacy-$SOURCE_SHA"
+            fi
+            printf '%s=%s\n' "$kind" "$key" >> "$GITHUB_OUTPUT"
+          done
       - name: kotlin Framework-Cache gezielt wiederherstellen
         id: kotlin_cache
         uses: actions/cache/restore@v4
@@ -112,6 +121,7 @@ jobs:
             bbt-ios-framework-rust-${{ runner.os }}-${{ runner.arch }}-${{ steps.native_keys.outputs.rust }}-
       - name: Native Abhängigkeiten für Cache-Fehlschläge wiederverwenden
         id: native_dependencies
+        if: steps.kotlin_cache.outputs.cache-matched-key == '' || steps.rust_cache.outputs.cache-matched-key == ''
         uses: actions/cache@v4
         with:
           path: |
