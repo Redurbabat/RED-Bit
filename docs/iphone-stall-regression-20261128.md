@@ -18,3 +18,7 @@ Reine Swift-Regression: scripts/test-playback-progress.swift. Zusätzlich besteh
 ## Native Nacharbeit
 
 Decoderfehler bleiben bis zum Abschluss der Stimme erhalten, auch bei Bit-Perfect. Ohne aktive Überblendung wird bei Decoderfehler nicht zum vorbereiteten Titel gesprungen. Nach belegbar leerer Ausgabe meldet der Mixer den tatsächlichen Endstand ohne erneuten Abzug der DSP-Latenz und genau ein Ende. Neue Rust-Regressionen decken Restpuffer, doppelten Abschluss und fehlerhafte Decoder ab. Der Livetest-Monitor läuft nun auch in der Simulator-CI. Für den ausdrücklich angeforderten IPA-Test wurde ein auf diesen Branch und einen Commitmarker beschränkter Opt-in unter dem bestehenden globalen Auto-Build-Schalter ergänzt; keine Signierung oder Veröffentlichung.
+
+### CI-Gegenprobe
+
+Der Lauf 46151406428 scheiterte in der Monitor-Gegenprobe beim exakten Double-Vergleich `stalledSeconds == 39`. Der Test verwendet jetzt eine feste monotone Testuhr, eine numerische Toleranz von einer Millisekunde sowie eine anschliessende Fortschrittsmessung, die den erhaltenen Fehlerstatus überprüft. Der Produktions-Watchdog bleibt unverändert; der erneute CI- und IPA-Lauf prüft den aktualisierten Stand.

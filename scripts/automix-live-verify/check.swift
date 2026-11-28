@@ -155,16 +155,26 @@ extension AutomixLiveTestMonitor {
         controller.analysisSources = "[beat:coreml]"
         controller.position = 373.449; controller.duration = 373.461
         monitor.applicationBackgroundChanged(true)
-        let start = ProcessInfo.processInfo.systemUptime + 1
+        // Eine feste Testuhr vermeidet Rundungsabweichungen der Systemlaufzeit.
+        // Der explizite Auswahlwechsel eröffnet ein unabhängiges Messfenster.
+        controller.playGeneration += 1
+        let start: TimeInterval = 1_000
         for second in 0...39 { monitor.record(controller: controller, monotonicNow: start + Double(second)) }
         precondition(monitor.result(.playbackProgress).status == .failed)
         precondition(monitor.result(.playbackProgress).lastFailure == .nearEndStalled)
         precondition(monitor.result(.backgroundPlayback).status == .failed)
         precondition(monitor.result(.coreMLPlan).status == .passed)
         precondition(monitor.result(.beatPlan).status == .notObserved)
-        precondition(monitor.samples.last?.stalledSeconds == 39)
-        controller.position = 374
+        precondition(abs((monitor.samples.last?.stalledSeconds ?? -1) - 39) < 0.001,
+                     "Stillstand muss rund 39 Sekunden betragen")
+        // Nach einer Wiederherstellung bleibt der einmal gemeldete Fehler erhalten.
+        controller.playGeneration += 1
+        controller.position = 5; controller.duration = 200
         monitor.record(controller: controller, monotonicNow: start + 40)
+        controller.position = 6
+        monitor.record(controller: controller, monotonicNow: start + 41)
+        precondition(monitor.samples.last?.progressed == true)
+        precondition(monitor.samples.last?.stalledSeconds == 0)
         precondition(monitor.result(.playbackProgress).status == .failed)
         monitor.applicationBackgroundChanged(false)
         let oldProbe = AppTestEvents.begin(.search)
