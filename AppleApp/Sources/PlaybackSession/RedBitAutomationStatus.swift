@@ -41,3 +41,41 @@ struct RedBitAutomationStatus: Encodable {
         return String(decoding: try encoder.encode(self), as: UTF8.self)
     }
 }
+
+/// Explizite Befehle statt Toggle. Nur Play/Pause sind idempotent;
+/// ein erneutes Next/Previous ist eine weitere bewusste Navigation.
+enum RedBitTransportCommand: String, Encodable {
+    case play, pause, next, previous
+
+    enum Decision: String, Encodable {
+        case requested, unchanged, locked, unavailable
+    }
+
+    func decision(for status: RedBitAutomationStatus) -> Decision {
+        guard !status.controlsLocked else { return .locked }
+        guard status.hasTrack else { return .unavailable }
+        switch self {
+        case .play:
+            return status.state == .playing || status.state == .buffering ? .unchanged : .requested
+        case .pause:
+            return status.state == .playing || status.state == .buffering ? .requested : .unchanged
+        case .next:
+            return status.canNext ? .requested : .unavailable
+        case .previous:
+            return status.canPrevious ? .requested : .unavailable
+        }
+    }
+
+    struct Receipt: Encodable {
+        let version = 1
+        let command: RedBitTransportCommand
+        let decision: Decision
+        let status: RedBitAutomationStatus
+
+        func json() throws -> String {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.sortedKeys]
+            return String(decoding: try encoder.encode(self), as: UTF8.self)
+        }
+    }
+}

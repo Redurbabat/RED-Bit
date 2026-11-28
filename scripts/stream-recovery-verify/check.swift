@@ -68,6 +68,31 @@ import Foundation
         let empty = RedBitAutomationStatus(state: .playing, hasTrack: false, position: 99,
             duration: 100, canNext: false, canPrevious: false, controlsLocked: false, hasPlaybackError: false)
         precondition(empty.state == .stopped && empty.positionSeconds == nil && empty.durationSeconds == nil)
-        print("PASS stream recovery, bounded output watchdog and private automation status")
+        func snapshot(_ state: RedBitAutomationStatus.State, locked: Bool = false,
+                      track: Bool = true, next: Bool = true, previous: Bool = true) -> RedBitAutomationStatus {
+            RedBitAutomationStatus(state: state, hasTrack: track, position: 1, duration: 100,
+                canNext: next, canPrevious: previous, controlsLocked: locked, hasPlaybackError: false)
+        }
+        for active in [RedBitAutomationStatus.State.playing, .buffering] {
+            precondition(RedBitTransportCommand.play.decision(for: snapshot(active)) == .unchanged)
+            precondition(RedBitTransportCommand.pause.decision(for: snapshot(active)) == .requested)
+        }
+        for idle in [RedBitAutomationStatus.State.paused, .stopped] {
+            precondition(RedBitTransportCommand.play.decision(for: snapshot(idle)) == .requested)
+            precondition(RedBitTransportCommand.pause.decision(for: snapshot(idle)) == .unchanged)
+        }
+        for command in [RedBitTransportCommand.play, .pause, .next, .previous] {
+            precondition(command.decision(for: snapshot(.playing, locked: true)) == .locked)
+            precondition(command.decision(for: snapshot(.stopped, track: false)) == .unavailable)
+        }
+        precondition(RedBitTransportCommand.next.decision(for: snapshot(.playing, next: false)) == .unavailable)
+        precondition(RedBitTransportCommand.previous.decision(for: snapshot(.playing, previous: false)) == .unavailable)
+        precondition(RedBitTransportCommand.next.decision(for: snapshot(.playing)) == .requested)
+        precondition(RedBitTransportCommand.previous.decision(for: snapshot(.playing)) == .requested)
+        let receipt = RedBitTransportCommand.Receipt(command: .pause, decision: .requested, status: snapshot(.paused))
+        let receiptObject = try! JSONSerialization.jsonObject(with: Data(try! receipt.json().utf8)) as! [String: Any]
+        precondition(Set(receiptObject.keys) == Set(["version", "command", "decision", "status"]))
+        precondition(receiptObject["decision"] as? String == "requested")
+        print("PASS stream recovery, output watchdog, private status and explicit transport commands")
     }
 }

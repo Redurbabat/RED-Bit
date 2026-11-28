@@ -183,7 +183,10 @@ enum AppIntentActions {
     /// Status ohne Musiktitel, Konto, URLs oder private Fehlertexte.
     /// Liest nur das vorhandene Controller-Modell, kein Netzwerkzugriff.
     static func playbackStatus() throws -> String {
-        let controller = AppServices.shared.controller
+        try statusSnapshot(AppServices.shared.controller).json()
+    }
+
+    private static func statusSnapshot(_ controller: PlaybackController) -> RedBitAutomationStatus {
         let state: RedBitAutomationStatus.State
         switch controller.state {
         case .stopped: state = .stopped
@@ -191,12 +194,45 @@ enum AppIntentActions {
         case .playing: state = .playing
         case .paused: state = .paused
         }
-        return try RedBitAutomationStatus(
+        return RedBitAutomationStatus(
             state: state, hasTrack: controller.current != nil,
             position: controller.position, duration: controller.duration,
             canNext: controller.canPlayNext, canPrevious: controller.canPlayPrevious,
             controlsLocked: PartyStore.shared.state.controlsLocked,
             hasPlaybackError: controller.lastError != nil
+        )
+    }
+
+    /// Prüfung und Auftrag erfolgen auf demselben MainActor ohne Suspension.
+    /// Die Quittung bestätigt nur die Anforderung, nicht hörbare Wiedergabe.
+    static func transport(_ command: RedBitTransportCommand) throws -> String {
+        let controller = AppServices.shared.controller
+        let decision = command.decision(for: statusSnapshot(controller))
+        if decision == .requested {
+            switch command {
+            case .play:
+                controller.togglePlayPause()
+            case .pause:
+                if controller.isBuffering {
+                    controller.togglePlayPause()
+                } else {
+                    // Kein Toggle: bei einer defekten Quelle könnte ein
+                    // Toggle sonst einen neuen Load statt Pause anstossen.
+                    controller.noteLocalIntent()
+                    controller.pausePlayback()
+                }
+            case .next:
+                controller.next()
+            case .previous:
+                controller.previous()
+            }
+        } else if decision == .unchanged && command == .pause {
+            // Auch ein bereits pausierter Nutzer kann eine ausstehende
+            // automatische Fortsetzung nach einem Anruf ablehnen.
+            controller.wasInterrupted = false
+        }
+        return try RedBitTransportCommand.Receipt(
+            command: command, decision: decision, status: statusSnapshot(controller)
         ).json()
     }
 
@@ -311,6 +347,50 @@ struct ReadPlaybackStatusIntent: AppIntent {
     func perform() async throws -> some IntentResult & ReturnsValue<String> {
         let result = try await AppIntentActions.playbackStatus()
         return .result(value: result)
+    }
+}
+
+struct ResumeRedBitIntent: AppIntent {
+    static var title: LocalizedStringResource = "Resume RED Bit"
+    static var description = IntentDescription("Resume the selected track without toggling active playback.")
+    static var openAppWhenRun = false
+    static var authenticationPolicy: IntentAuthenticationPolicy = .requiresAuthentication
+
+    func perform() async throws -> some IntentResult & ReturnsValue<String> {
+        .result(value: try await AppIntentActions.transport(.play))
+    }
+}
+
+struct PauseRedBitIntent: AppIntent {
+    static var title: LocalizedStringResource = "Pause RED Bit"
+    static var description = IntentDescription("Pause playback without starting a new track.")
+    static var openAppWhenRun = false
+    static var authenticationPolicy: IntentAuthenticationPolicy = .requiresAuthentication
+
+    func perform() async throws -> some IntentResult & ReturnsValue<String> {
+        .result(value: try await AppIntentActions.transport(.pause))
+    }
+}
+
+struct NextRedBitIntent: AppIntent {
+    static var title: LocalizedStringResource = "Next RED Bit Track"
+    static var description = IntentDescription("Request the next available queue entry.")
+    static var openAppWhenRun = false
+    static var authenticationPolicy: IntentAuthenticationPolicy = .requiresAuthentication
+
+    func perform() async throws -> some IntentResult & ReturnsValue<String> {
+        .result(value: try await AppIntentActions.transport(.next))
+    }
+}
+
+struct PreviousRedBitIntent: AppIntent {
+    static var title: LocalizedStringResource = "Previous RED Bit Track"
+    static var description = IntentDescription("Use the normal previous-track action in RED Bit.")
+    static var openAppWhenRun = false
+    static var authenticationPolicy: IntentAuthenticationPolicy = .requiresAuthentication
+
+    func perform() async throws -> some IntentResult & ReturnsValue<String> {
+        .result(value: try await AppIntentActions.transport(.previous))
     }
 }
 

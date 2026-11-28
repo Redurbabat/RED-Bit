@@ -14012,6 +14012,86 @@
         }
       }
     },
+    "Resume RED Bit" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RED Bit fortsetzen"
+          }
+        }
+      }
+    },
+    "Resume the selected track without toggling active playback." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ausgewählten Titel fortsetzen, ohne aktive Wiedergabe umzuschalten."
+          }
+        }
+      }
+    },
+    "Pause RED Bit" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RED Bit pausieren"
+          }
+        }
+      }
+    },
+    "Pause playback without starting a new track." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wiedergabe pausieren, ohne einen neuen Titel zu starten."
+          }
+        }
+      }
+    },
+    "Next RED Bit Track" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RED Bit nächster Titel"
+          }
+        }
+      }
+    },
+    "Request the next available queue entry." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nächsten verfügbaren Titel in der Warteschlange anfordern."
+          }
+        }
+      }
+    },
+    "Previous RED Bit Track" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RED Bit vorheriger Titel"
+          }
+        }
+      }
+    },
+    "Use the normal previous-track action in RED Bit." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Normale Zurück-Aktion in RED Bit ausführen."
+          }
+        }
+      }
+    },
     "Playback position" : {
       "localizations" : {
         "de" : {

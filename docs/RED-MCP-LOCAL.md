@@ -21,6 +21,21 @@ Party-Sperren werden in den Transportfähigkeiten berücksichtigt.
 Keine Titel, Künstler, Konten, Stream-URLs, Dateipfade, Track-IDs, Tokens,
 Historie oder freien Fehlertexte. Keine automatische Übertragung.
 
+## Lokale Transportaktionen
+
+Weitere authentifizierungspflichtige Kurzbefehle:
+- RED Bit fortsetzen: Play nur bei pausierter oder gestoppter Auswahl.
+- RED Bit pausieren: Pause ohne Start eines neuen Titels; wiederholte Pause bleibt Pause.
+- RED Bit nächster Titel und RED Bit vorheriger Titel: normale Player-Navigation, nicht idempotent.
+  Zurück kann den aktuellen Titel neu beginnen; Party-Sperren und verfügbare Ziele werden geprüft.
+
+Die vier Aktionen liefern eine versionierte JSON-Quittung mit command,
+decision (requested/unchanged/locked/unavailable) und begrenztem status.
+`requested` bedeutet nur, dass der Auftrag an den Controller übergeben
+wurde. Keine Garantie, dass asynchrones Laden oder Audioausgabe gelingt.
+Bei leerer Auswahl startet die Aktion keine neue Queue.
+Keine Remote-Befehle, kein Netzwerk-Listener, keine neue RED-ID-Berechtigung.
+
 ## Noch nicht verfügbar
 
 Dies ist **kein MCP-Server**. Der App Intent ist eine lokale, vom System

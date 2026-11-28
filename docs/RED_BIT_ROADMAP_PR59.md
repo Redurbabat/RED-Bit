@@ -82,3 +82,8 @@ Der Branch `feat/red-bit-audio-continuity-20261128` basiert auf PR #59 (bd15a0f)
 ### RED MCP – lokale Grundlage
 - Versionierte, rein lesende Statusprojektion mit festen Feldern, ohne Titel/Künstler/URLs/IDs/Tokens/Dateipfade oder Fehlertexte. Authentifizierungspflichtiger lokaler App Intent für Kurzbefehle, keine neue Netzwerkfreigabe.
 - RED ID bleibt ausschliesslich bei identity:read. Remote-MCP, zusätzliche Berechtigungen, Freigabe/Widerruf und Transportsteuerung über Server sind noch nicht implementiert. Sieben zusätzliche Statusprüfungen in der Recovery-Suite, Apple-CI ausstehend.
+
+### RED MCP – explizite lokale Transportaufträge
+- Vier zusätzliche authentifizierte Kurzbefehle für Play/Pause/Next/Previous. Zustand und Party-Sperren vor Ausführung auf dem MainActor prüfen. Wiederholtes Play/Pause schaltet nicht versehentlich um; Navigation bleibt absichtlich nicht idempotent.
+- Versionierte, private Quittung mit requested/unchanged/locked/unavailable; kein hörbarer Erfolgsnachweis. Kein neuer Remote-Transport.
+- Policy-Gegenproben für alle Zustände, Sperren, leere Auswahl, Navigationsgrenzen und Quittung. Geräteabnahme ausstehend.
