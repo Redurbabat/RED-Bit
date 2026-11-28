@@ -65,11 +65,30 @@ ein erneuter Aufruf kann einen anderen Titel treffen. Keine Wiederholung
 bei Timeout; die Quittung bestätigt keinen hörbaren Erfolg. Die vier
 Audio-/Shuffle-Einstellungswerkzeuge bleiben im MCP-Adapter gesperrt.
 
+## Optional: Automix, Equalizer, Qualität und Shuffle
+
+Mit dem zusätzlichen Host-Startargument `--allow-preferences` werden
+vier weitere lokale MCP-Werkzeuge eingeblendet:
+- `redbit_set_automix`, `redbit_set_equalizer` und
+  `redbit_set_shuffle` verwenden `{"enabled":true}` bzw. `false`.
+- `redbit_set_quality` verwendet z. B.
+  `{"quality":"HIGH","metered":true}`. Zulässig sind nur LOW, MEDIUM,
+  HIGH und LOSSLESS. `metered` wählt das Profil für mobile Daten.
+
+**Standardmässig ist dieser Zugriff aus.** Zusätzlich muss in RED Bit
+„Audio- und Zufallseinstellungen ändern“ ausdrücklich freigegeben sein;
+die Statusfreigabe ist Voraussetzung. Nur der lokale, vertrauenswürdige
+Mac-MCP-Host kann die Flags setzen; es gibt weiterhin keinen Remote-Zugang.
+Einstellungen werden über die vorhandenen App-Aktionen geändert. Der Adapter
+prüft exakte Parameter und Quittungsfelder; unerwartete Daten werden nicht
+an den Host weitergegeben. `requested` bestätigt lediglich einen Auftrag,
+keine erfolgreiche Wiedergabe. Bei unklarem Ausgang erfolgt kein Retry.
+
 ## Tests
 
 `python3 -m unittest discover -s scripts/redbit-mcp -v`
 
-16 lokale Protokoll-/Privacy-/Bridge-Tests (simuliertes shortcuts-Programm),
+24 lokale Protokoll-/Privacy-/Bridge-Tests (simuliertes shortcuts-Programm),
 keine echte macOS-/iPhone-Geräteabnahme. Die tatsächliche App-Antwort, Apple-
 Authentifizierung und der konkrete Host müssen noch gemeinsam erprobt werden.
 Die macOS-Brücke ist kein iOS- oder Windows-Dienst und kein ChatGPT-Cloud-Connector.
