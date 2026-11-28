@@ -1,4 +1,4 @@
-# RED Bit – lokaler MCP-Lesepilot (macOS)
+# RED Bit – lokaler MCP-Pilot (macOS)
 
 Basis: PR #61, lokaler Werkzeugvertrag v1. Kein HTTP-Port, keine Cloud,
 keine RED-ID-Token, kein automatischer Hintergrunddienst. Ein vertrauenswürdiger
@@ -25,18 +25,34 @@ tools/list und tools/call; kein vollständiger Konformitätsnachweis.
 
 Die Antwort wird auf die bekannten Status-/Queue-Felder begrenzt. Fremde Felder
 und ungültige Werte werden nicht weitergegeben; Fehlertexte enthalten keine
-Rohdaten. Nur zwei Lesewerkzeuge, keine Schreibbefehle. Keine automatische
+Rohdaten. Standardmässig nur zwei Lesewerkzeuge. Keine automatische
 Wiederholung nach Timeout. Der Host erhält die ausdrücklich freigegebenen
 Status-/Queue-Daten und kann sie seinerseits verarbeiten.
 
 Apple CLI: https://support.apple.com/guide/shortcuts-mac/apd455c82f02/mac
 MCP-Protokoll: https://modelcontextprotocol.io/specification/2025-11-25
 
+## Optional: Play und Pause
+
+Erst nach einem erfolgreichen Lesetest und ausdrücklicher Entscheidung des
+Nutzers kann der lokale Host mit dem zusätzlichen Startargument
+`--allow-play-pause` neu gestartet werden. In RED Bit muss zusätzlich
+die lokale Transportfreigabe aktiv sein. Dann erscheinen `redbit_play`
+und `redbit_pause` mit jeweils `{}` als Eingabe. Die anderen acht
+schreibenden Werkzeuge bleiben gesperrt. Der Standardmodus bleibt lesend.
+
+`requested` bestätigt nur den Auftrag, `unchanged` den bereits vorliegenden
+Zustand. `locked` und `unavailable` sind Werkzeugfehler. Bei Timeout oder
+ungültiger Quittung ist der Ausgang unbekannt; erst Status lesen, nicht
+automatisch erneut ausführen. Das Deaktivieren der App-Freigabe verhindert
+weitere autorisierte Aufträge, auch wenn der Host noch gestartet ist.
+Kein Remote-Proxy und keine automatische Aktivierung von Play/Pause.
+
 ## Tests
 
 `python3 -m unittest discover -s scripts/redbit-mcp -v`
 
-Sechs lokale Protokoll-/Privacy-/Bridge-Tests (simuliertes shortcuts-Programm),
+Elf lokale Protokoll-/Privacy-/Bridge-Tests (simuliertes shortcuts-Programm),
 keine echte macOS-/iPhone-Geräteabnahme. Die tatsächliche App-Antwort, Apple-
 Authentifizierung und der konkrete Host müssen noch gemeinsam erprobt werden.
 Die macOS-Brücke ist kein iOS- oder Windows-Dienst und kein ChatGPT-Cloud-Connector.

@@ -5,7 +5,7 @@ import subprocess
 import unittest
 from unittest.mock import patch
 
-from server import NAMES, Server, ShortcutRunner, catalog, serve, strict_json, validate_reply
+from server import NAMES, TRANSPORT_NAMES, Server, ShortcutRunner, catalog, serve, strict_json, validate_reply
 
 STATUS = {"version": 1, "state": "paused", "hasTrack": True, "canNext": False,
           "canPrevious": False, "controlsLocked": False, "hasPlaybackError": False}
@@ -75,6 +75,77 @@ class ReadPilotTests(unittest.TestCase):
             Path(args[6]).write_text(json.dumps(STATUS))
         with patch("server.subprocess.run", side_effect=fake_run):
             self.assertEqual(ShortcutRunner("RED Bit Local")(NAMES[0]), STATUS)
+
+    def enable_transport(self):
+        tools = catalog(Path(__file__).resolve().parents[2] / "docs/red-bit-tool-contract.json", True)
+        self.server = Server(tools, self.run_fixture, allow_play_pause=True)
+        self.ready()
+        return tools
+
+    def test_transport_requires_explicit_host_opt_in(self):
+        tools = catalog(Path(__file__).resolve().parents[2] / "docs/red-bit-tool-contract.json", True)
+        with self.assertRaises(ValueError):
+            Server(tools, self.run_fixture)
+        with patch("server.subprocess.run") as run:
+            with self.assertRaises(ValueError):
+                ShortcutRunner("RED Bit Local")("redbit_play")
+            run.assert_not_called()
+        self.ready()
+        self.assertIn("error", self.request("tools/call", {"name": "redbit_pause"}))
+        self.assertEqual(self.calls, [])
+
+    def test_transport_catalog_and_receipts(self):
+        tools = self.enable_transport()
+        self.assertEqual([t["name"] for t in tools], list(NAMES + TRANSPORT_NAMES))
+        self.assertTrue(all(not t["annotations"]["readOnlyHint"] for t in tools[2:]))
+        def receipt(name):
+            self.calls.append(name)
+            return {"version": 1, "command": name.removeprefix("redbit_"),
+                    "decision": "requested", "status": STATUS}
+        self.server.runner = receipt
+        for name in TRANSPORT_NAMES:
+            result = self.request("tools/call", {"name": name})["result"]
+            self.assertFalse(result["isError"])
+            self.assertEqual(json.loads(result["content"][0]["text"])["decision"], "requested")
+        for name in ("redbit_next", "redbit_previous", "redbit_set_volume", "redbit_set_quality"):
+            self.assertIn("error", self.request("tools/call", {"name": name}))
+        self.assertIn("error", self.request("tools/call", {"name": "redbit_play", "arguments": {"extra": 1}}))
+        self.assertEqual(self.calls, list(TRANSPORT_NAMES))
+
+    def test_transport_rejected_and_private_receipts(self):
+        self.enable_transport()
+        for decision in ("locked", "unavailable", "unchanged"):
+            self.server.runner = lambda _: {"version": 1, "command": "pause",
+                                            "decision": decision, "status": STATUS}
+            result = self.request("tools/call", {"name": "redbit_pause"})["result"]
+            self.assertEqual(result["isError"], decision != "unchanged")
+        for receipt in (
+            {"version": 1, "command": "play", "decision": "requested", "status": STATUS},
+            {"version": 1, "command": "pause", "decision": "private", "status": STATUS},
+            {"version": 1, "command": "pause", "decision": "requested", "status": dict(STATUS, token="private")},
+        ):
+            self.server.runner = lambda _: receipt
+            result = self.request("tools/call", {"name": "redbit_pause"})["result"]
+            self.assertTrue(result["isError"])
+            self.assertNotIn("private", json.dumps(result))
+
+    def test_transport_timeout_unknown_outcome_and_no_retry(self):
+        self.enable_transport()
+        self.server.runner = ShortcutRunner("RED Bit Local", allow_play_pause=True)
+        with patch("server.subprocess.run", side_effect=subprocess.TimeoutExpired("shortcuts", 20)) as run:
+            result = self.request("tools/call", {"name": "redbit_play"})["result"]
+            self.assertTrue(result["isError"])
+            self.assertIn("outcome unknown", result["content"][0]["text"])
+            run.assert_called_once()
+
+    def test_transport_file_bridge(self):
+        def fake_run(args, **kwargs):
+            self.assertEqual(json.loads(Path(args[4]).read_text()), {"tool": "redbit_pause", "arguments": "{}"})
+            Path(args[6]).write_text(json.dumps({"version": 1, "command": "pause",
+                "decision": "requested", "status": STATUS}))
+        with patch("server.subprocess.run", side_effect=fake_run):
+            reply = ShortcutRunner("RED Bit Local", allow_play_pause=True)("redbit_pause")
+            self.assertEqual(validate_reply("redbit_pause", reply)["command"], "pause")
 
     def test_json_framing(self):
         for raw in ('{"a":1,"a":2}', '{"a":NaN}'):
