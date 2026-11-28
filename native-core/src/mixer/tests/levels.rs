@@ -234,21 +234,9 @@ fn the_queue_path_matches_a_measured_deck_to_a_relative_one() {
     // its end, well before the fade itself. Waiting for the handoff as well
     // would make the test about the crossfade's schedule.
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
-    // The device callback's side of the ring: every popped sample has to
-    // leave the shared counter, or the mixer believes the ring is full and
-    // never looks at its command channel again.
+    // Wie der Geräte-Callback nur vollständige Stereo-Frames zählen.
     fn drain(consumer: &mut rtrb::Consumer<f32>, buffered: &AtomicU64) {
-        while consumer.pop().is_ok() {
-            let current = buffered.load(Ordering::Relaxed);
-            if current > 0 {
-                let _ = buffered.compare_exchange(
-                    current,
-                    current - 1,
-                    Ordering::Relaxed,
-                    Ordering::Relaxed,
-                );
-            }
-        }
+        drain_available_frames(consumer, buffered);
     }
 
     let mut armed = None;

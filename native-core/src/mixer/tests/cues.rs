@@ -259,12 +259,7 @@ fn a_long_pause_after_arming_keeps_the_planned_transition() {
     // 6-s-Anker, also sofort), aber noch vor dem Blendenstart bei 4 s.
     let guard = std::time::Instant::now() + std::time::Duration::from_secs(120);
     while position.load(Ordering::Relaxed) < 2_000 && std::time::Instant::now() < guard {
-        while consumer.pop().is_ok() {
-            let current = buffered.load(Ordering::Relaxed);
-            if current > 0 {
-                buffered.store(current - 1, Ordering::Relaxed);
-            }
-        }
+        drain_available_frames(&mut consumer, &buffered);
         std::thread::sleep(std::time::Duration::from_millis(5));
     }
     assert!(position.load(Ordering::Relaxed) < 4_000, "the blend started before the pause");
@@ -494,21 +489,7 @@ fn the_blend_ends_at_the_plans_anchor_not_the_file_end() {
     let mut drained = 0usize;
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
     while std::time::Instant::now() < deadline {
-        while consumer.pop().is_ok() {
-            drained += 1;
-            let mut current = buffered.load(Ordering::Relaxed);
-            while current > 0 {
-                match buffered.compare_exchange_weak(
-                    current,
-                    current - 1,
-                    Ordering::Relaxed,
-                    Ordering::Relaxed,
-                ) {
-                    Ok(_) => break,
-                    Err(v) => current = v,
-                }
-            }
-        }
+        drained += 2 * drain_available_frames(&mut consumer, &buffered);
         if !events.handoffs.lock().unwrap().is_empty() {
             break;
         }

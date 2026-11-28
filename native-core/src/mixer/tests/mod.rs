@@ -630,7 +630,53 @@ fn drain_frames(consumer: &mut rtrb::Consumer<f32>, buffered: &AtomicU64, frames
     }
 }
 
-/// Drains until the handoff fires, returning the playhead at that moment.
+/// Entnimmt höchstens einen Block vollständiger Stereo-Frames.
+/// Der Mixer zählt Frames, nicht einzelne Samples. Die atomare Subtraktion
+/// erhält parallel publizierte Frames; die Blockgrenze lässt dem Test Zeit,
+/// Handoff-Ereignisse und Abbruchbedingungen regelmässig zu prüfen.
+fn drain_available_frames(consumer: &mut rtrb::Consumer<f32>, buffered: &AtomicU64) -> usize {
+    let mut frames = 0;
+    while frames < 1024 && consumer.slots() >= 2 {
+        consumer.pop().unwrap();
+        consumer.pop().unwrap();
+        let _ = buffered.fetch_update(Ordering::AcqRel, Ordering::Relaxed, |v| {
+            Some(v.saturating_sub(1))
+        });
+        frames += 1;
+    }
+    frames
+}
+
+#[test]
+fn test_drain_counts_complete_stereo_frames_and_preserves_partial_frame() {
+    let (mut producer, mut consumer) = rtrb::RingBuffer::<f32>::new(4096);
+    let buffered = AtomicU64::new(2);
+    for sample in [0.1, 0.2, 0.3] {
+        producer.push(sample).unwrap();
+    }
+    assert_eq!(drain_available_frames(&mut consumer, &buffered), 1);
+    assert_eq!(buffered.load(Ordering::Relaxed), 1);
+    assert_eq!(consumer.slots(), 1);
+    producer.push(0.4).unwrap();
+    assert_eq!(drain_available_frames(&mut consumer, &buffered), 1);
+    assert_eq!(buffered.load(Ordering::Relaxed), 0);
+    assert_eq!(consumer.slots(), 0);
+}
+
+#[test]
+fn test_drain_yields_after_a_bounded_block() {
+    let (mut producer, mut consumer) = rtrb::RingBuffer::<f32>::new(4096);
+    let buffered = AtomicU64::new(1500);
+    for _ in 0..3000 {
+        producer.push(0.0).unwrap();
+    }
+    assert_eq!(drain_available_frames(&mut consumer, &buffered), 1024);
+    assert_eq!(buffered.load(Ordering::Relaxed), 476);
+    assert_eq!(drain_available_frames(&mut consumer, &buffered), 476);
+    assert_eq!(buffered.load(Ordering::Relaxed), 0);
+}
+
+/// Drains until the handoff fires, returning the observed playhead.
 ///
 /// The playhead is the number a caller needs: the handoff is the engine
 /// saying "the incoming track is audible now", so how far into the outgoing
@@ -652,21 +698,7 @@ fn drain_until_handoff(
     let mut drained: u64 = 0;
     let hang_guard = started + std::time::Duration::from_secs(seconds.max(30) * 9);
     loop {
-        while consumer.pop().is_ok() {
-            drained += 1;
-            let mut current = buffered.load(Ordering::Relaxed);
-            while current > 0 {
-                match buffered.compare_exchange_weak(
-                    current,
-                    current - 1,
-                    Ordering::Relaxed,
-                    Ordering::Relaxed,
-                ) {
-                    Ok(_) => break,
-                    Err(v) => current = v,
-                }
-            }
-        }
+        drained += 2 * drain_available_frames(consumer, buffered) as u64;
         if !events.handoffs.lock().unwrap().is_empty() {
             // The mixer publishes the incoming track's playhead at handoff,
             // which is its own cue rather than the outgoing tail — so this is
