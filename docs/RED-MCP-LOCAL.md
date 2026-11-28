@@ -2,6 +2,15 @@
 
 ## Verfügbar im Folge-PR #61
 
+Vor der ersten Nutzung in **Einstellungen → Konto & Integrationen → RED Automation**
+die gewünschten lokalen Freigaben aktivieren. Standardmässig sind alle aus.
+Status ist Voraussetzung für die Quittungen; Ausschalten widerruft auch beide
+Schreibfreigaben. Wiedergabe/Seek/Lautstärke benötigen Transport, Automix/EQ/
+Streamingqualität/Shuffle benötigen Einstellungen. Der Widerruf sperrt künftige
+Aufrufe; bereits angeforderte asynchrone Operationen können noch enden.
+Die zwölf neuen Aktionen benötigen weiterhin Systemauthentifizierung.
+Bestehende Siri-Aktionen und RED ID werden nicht durch diese lokalen Freigaben ersetzt.
+
 In Apple Kurzbefehle die Aktion **RED Bit Wiedergabestatus lesen** auswählen.
 Die Aktion verlangt Systemauthentifizierung und gibt einen JSON-Text zurück.
 Sie liest den aktuellen In-Memory-Zustand der App; sie startet keine Musik
@@ -72,8 +81,15 @@ Dies ist **kein MCP-Server**. Der App Intent ist eine lokale, vom System
 vermittelte Aktion. RED ID unterstützt aktuell nur identity:read; kein
 vorhandenes Token darf als Erlaubnis für Musikdaten oder Steuerung gelten.
 
+Serverabgleich 28.11.2026: Redion PR #258, Commit
+`263406ef96d6192939cc4a5a686e7ea8d5c741f9`, `server/home/ecosystem.ts`:
+MCP meldet `externalAppActions:false`. Sync ist same-owner-app und
+erfordert eigene Freigabe; Notify ist owner-only. Keines davon ist ein
+Transportkanal für Musikbefehle. Der Apple-SDK-Pilot bleibt bei identity:read.
+Die lokale Freigabeverwaltung ist keine Server- oder Geräteauthentifizierung.
+
 Vor einem echten RED-MCP-Adapter auf RED Server:
-1. Separate, widerrufbare Einwilligung pro Gerät und Scope (Status / Transport).
+1. Separate, widerrufbare Server-Einwilligung pro Gerät und Scope (Status / Transport / Einstellungen), zusätzlich zu den lokalen Freigaben.
 2. Versionierte Tool-Schemas, authentifizierter Transport, Gerätezuordnung,
    Ablaufzeit, Schutz vor Wiederholung, Rate-Limit und redigierte Audit-Ereignisse.
 3. Idempotente Play/Pause-Aktionen, Party- und Benutzerintent-Schutz; keine

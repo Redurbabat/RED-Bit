@@ -14332,6 +14332,156 @@
         }
       }
     },
+    "RED Automation" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RED Automation"
+          }
+        }
+      }
+    },
+    "Local permissions" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lokale Freigaben"
+          }
+        }
+      }
+    },
+    "Read playback and queue status" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wiedergabe- und Warteschlangenstatus lesen"
+          }
+        }
+      }
+    },
+    "Control playback and volume" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wiedergabe und Lautstärke steuern"
+          }
+        }
+      }
+    },
+    "Change audio and shuffle settings" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Audio- und Zufallseinstellungen ändern"
+          }
+        }
+      }
+    },
+    "Status is required for action receipts. Turning it off also revokes both write permissions." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Statuszugriff ist für Aktionsquittungen erforderlich. Abschalten widerruft auch beide Schreibfreigaben."
+          }
+        }
+      }
+    },
+    "Remote MCP" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remote MCP"
+          }
+        }
+      }
+    },
+    "Not connected" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht verbunden"
+          }
+        }
+      }
+    },
+    "Local" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lokal"
+          }
+        }
+      }
+    },
+    "Apple Shortcuts" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Kurzbefehle"
+          }
+        }
+      }
+    },
+    "These permissions apply only to the new local RED Bit automation actions. Apple authentication remains required. Existing Siri actions and RED ID are unchanged." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Freigaben gelten nur für die neuen lokalen RED-Bit-Automatisierungen. Apple-Authentifizierung bleibt erforderlich. Bestehende Siri-Aktionen und RED ID bleiben unverändert."
+          }
+        }
+      }
+    },
+    "Revoke all automation permissions" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle Automatisierungsfreigaben widerrufen"
+          }
+        }
+      }
+    },
+    "Revoke all automation permissions?" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle Automatisierungsfreigaben widerrufen?"
+          }
+        }
+      }
+    },
+    "Future local automation calls will be rejected. Music and accounts are not deleted. Already requested operations may finish." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weitere lokale Automatisierungsaufrufe werden abgelehnt. Musik und Konten werden nicht gelöscht. Bereits angeforderte Vorgänge können noch enden."
+          }
+        }
+      }
+    },
+    "Local RED Bit automation is not authorized. Review permissions in Settings." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lokale RED-Bit-Automatisierung ist nicht freigegeben. Prüfe die Freigaben in den Einstellungen."
+          }
+        }
+      }
+    },
     "Playback position" : {
       "localizations" : {
         "de" : {

@@ -160,6 +160,35 @@ import Foundation
         let qualityReceipt = RedBitAutomationPreference.Receipt(preference: .streamQuality("bad", metered: true),
             decision: .invalidValue, equalizer: false, wifiQuality: "HIGH", cellularQuality: "LOW", shuffle: false)
         precondition(qualityReceipt.requestedQuality == "LOW" && qualityReceipt.metered == true)
-        print("PASS stream recovery, output watchdog, private automation and audio/queue preferences")
+        let suite = "red.bit.automation.test." + UUID().uuidString
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        typealias Consent = RedBitLocalAutomationConsent
+        for scope in Consent.Scope.allCases {
+            precondition(!Consent.allows(scope, defaults: defaults))
+        }
+        Consent.set(.transport, enabled: true, defaults: defaults)
+        precondition(!Consent.allows(.transport, defaults: defaults))
+        Consent.revokeAll(defaults: defaults)
+        Consent.set(.status, enabled: true, defaults: defaults)
+        precondition(Consent.allows(.status, defaults: defaults))
+        precondition(!Consent.allows(.transport, defaults: defaults))
+        precondition(!Consent.allows(.preferences, defaults: defaults))
+        Consent.set(.transport, enabled: true, defaults: defaults)
+        precondition(Consent.allows(.transport, defaults: defaults))
+        precondition(!Consent.allows(.preferences, defaults: defaults))
+        Consent.set(.preferences, enabled: true, defaults: defaults)
+        precondition(Consent.allows(.preferences, defaults: defaults))
+        Consent.set(.status, enabled: false, defaults: defaults)
+        for scope in Consent.Scope.allCases {
+            precondition(!Consent.allows(scope, defaults: defaults))
+            precondition(!Consent.isEnabled(scope, defaults: defaults))
+        }
+        Consent.set(.status, enabled: true, defaults: defaults)
+        precondition(!Consent.allows(.transport, defaults: defaults))
+        precondition(!Consent.allows(.preferences, defaults: defaults))
+        Consent.revokeAll(defaults: defaults)
+        precondition(!Consent.allows(.status, defaults: defaults))
+        print("PASS stream recovery, output watchdog, private automation, preferences and local consent")
     }
 }

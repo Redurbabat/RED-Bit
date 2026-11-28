@@ -253,3 +253,37 @@ struct RedBitQueueSummary: Encodable {
 extension Notification.Name {
     static let redBitAutomationPreferencesChanged = Notification.Name("redbit.automation.preferences.changed")
 }
+
+/// Lokale Einwilligung pro Installationsprofil. Kein RED-ID-Scope,
+/// kein Cloud-Grant und keine Berechtigung für einen entfernten Client.
+enum RedBitLocalAutomationConsent {
+    enum Scope: String, CaseIterable {
+        case status, transport, preferences
+
+        var key: String { "red.bit.automation.local.v1." + rawValue }
+    }
+
+    static func isEnabled(_ scope: Scope, defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: scope.key) as? Bool == true
+    }
+
+    static func allows(_ scope: Scope, defaults: UserDefaults = .standard) -> Bool {
+        // Alle neuen Aktionsquittungen können private Zustandsdaten enthalten.
+        // Status ist deshalb zwingend, auch für schreibende Aktionen.
+        guard isEnabled(.status, defaults: defaults) else { return false }
+        return scope == .status || isEnabled(scope, defaults: defaults)
+    }
+
+    static func set(_ scope: Scope, enabled: Bool, defaults: UserDefaults = .standard) {
+        defaults.set(enabled, forKey: scope.key)
+        if scope == .status && !enabled {
+            // Erneute Freigabe des Lesens darf alte Schreibrechte nicht reaktivieren.
+            defaults.set(false, forKey: Scope.transport.key)
+            defaults.set(false, forKey: Scope.preferences.key)
+        }
+    }
+
+    static func revokeAll(defaults: UserDefaults = .standard) {
+        for scope in Scope.allCases { defaults.set(false, forKey: scope.key) }
+    }
+}

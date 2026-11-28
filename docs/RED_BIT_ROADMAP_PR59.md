@@ -97,3 +97,8 @@ Der Branch `feat/red-bit-audio-continuity-20261128` basiert auf PR #59 (bd15a0f)
 - Lokale authentifizierte Queue-Übersicht ohne Titel/IDs, Equalizer- und Shuffle-Schalter sowie getrennte WLAN-/Mobilfunk-Qualitätsvorgaben. Allowlist, Party-Schutz und unveränderte Einstellungen ohne erneuten Auftrag.
 - EQ-Bypass und laufender Titel bleiben erhalten; Settings und Equalizer übernehmen die geänderten Vorgaben. Die Statusquittung beschreibt Einstellungen, keine garantierte Audioausgabe.
 - Policy-Gegenproben und JSON-Feldprüfung erweitert. Noch kein Remote-MCP; keine destruktive Queue-/Playlist-Operation. Geräteabnahme ausstehend.
+
+### RED Server – lokale Freigabeverwaltung als Voraussetzung
+- Redion PR #258 (263406ef) meldet externalAppActions:false; identity:read ist keine Musikberechtigung. Kein Servercode verändert, keine automatische Verbindung.
+- Opt-in unter Konto & Integrationen → RED Automation: Status, Transport und Einstellungen getrennt, standardmässig aus. Status-Widerruf entfernt auch beide Schreibfreigaben. Jede der zwölf neuen lokalen Aktionen prüft ihre Freigabe vor Controller-Zugriff; bestehende Siri-Aktionen bleiben unverändert.
+- Isolierte UserDefaults-Gegenproben für Standard-Aus, Abhängigkeit, Widerruf und erneute Freigabe; Geräte-/Apple-CI ausstehend. Bereits beauftragte asynchrone Aktionen werden nicht rückgängig gemacht. Server-seitiger Scope und Remote-Transport fehlen weiterhin.

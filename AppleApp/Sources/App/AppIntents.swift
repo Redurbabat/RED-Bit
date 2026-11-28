@@ -181,10 +181,19 @@ private enum CachedSongs {
 /// title, a parameter and the sentence to say back.
 @MainActor
 enum AppIntentActions {
+    private static func requireConsent(_ scope: RedBitLocalAutomationConsent.Scope) throws {
+        guard RedBitLocalAutomationConsent.allows(scope) else {
+            throw RedBitIntentError.refused(
+                String(localized: "Local RED Bit automation is not authorized. Review permissions in Settings.")
+            )
+        }
+    }
+
     /// Status ohne Musiktitel, Konto, URLs oder private Fehlertexte.
     /// Liest nur das vorhandene Controller-Modell, kein Netzwerkzugriff.
     static func playbackStatus() throws -> String {
-        try statusSnapshot(AppServices.shared.controller).json()
+        try requireConsent(.status)
+        return try statusSnapshot(AppServices.shared.controller).json()
     }
 
     private static func statusSnapshot(_ controller: PlaybackController) -> RedBitAutomationStatus {
@@ -207,6 +216,7 @@ enum AppIntentActions {
     /// Prüfung und Auftrag erfolgen auf demselben MainActor ohne Suspension.
     /// Die Quittung bestätigt nur die Anforderung, nicht hörbare Wiedergabe.
     static func transport(_ command: RedBitTransportCommand) throws -> String {
+        try requireConsent(.transport)
         let controller = AppServices.shared.controller
         let decision = command.decision(for: statusSnapshot(controller))
         if decision == .requested {
@@ -240,6 +250,10 @@ enum AppIntentActions {
     /// Eingaben und aktuelle Wiedergabegeneration werden synchron geprüft.
     /// Die Quittung enthält keinen ungeprüften Parameter und keine Musikdaten.
     static func adjust(_ adjustment: RedBitAdjustment) throws -> String {
+        switch adjustment {
+        case .seekSeconds, .volumePercent: try requireConsent(.transport)
+        case .automix: try requireConsent(.preferences)
+        }
         let controller = AppServices.shared.controller
         let decision = adjustment.decision(
             status: statusSnapshot(controller), volume: controller.volume,
@@ -264,6 +278,7 @@ enum AppIntentActions {
     }
 
     static func queueSummary() throws -> String {
+        try requireConsent(.status)
         let controller = AppServices.shared.controller
         let start = controller.current == nil ? 0 : min(controller.queue.count, max(0, controller.playingIndex + 1))
         let upcoming = controller.queue.dropFirst(start)
@@ -276,6 +291,7 @@ enum AppIntentActions {
     }
 
     static func setPreference(_ preference: RedBitAutomationPreference) throws -> String {
+        try requireConsent(.preferences)
         let controller = AppServices.shared.controller
         let settings = PlatformSettings.shared
         let eqKey = "equalizer_enabled"
