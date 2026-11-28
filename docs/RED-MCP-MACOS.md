@@ -101,11 +101,31 @@ keine Server-Autorisierung und keine Garantie, dass ein Timeout den bereits
 gestarteten Apple-Kurzbefehl beendet hat. Nicht automatisch mit neuer ID
 wiederholen, sondern Status prüfen und bewusst entscheiden.
 
+## Ausführbare Geräteabnahme (nur lesend)
+
+Auf einem Mac mit installierter App und dem eingerichteten Kurzbefehl:
+
+```sh
+python3 scripts/redbit-mcp/smoke.py --shortcut "RED Bit Local"
+```
+
+Das Programm startet den tatsächlichen stdio-Adapter ohne Schreibfreigaben,
+führt den Handshake, die exakte Werkzeugliste und beide Leseaufrufe aus.
+Nur ein minimales JSON-Prüfergebnis erscheint, keine Wiedergabedaten.
+Nach manuellem Widerruf der Statusfreigabe erneut mit
+`--expect-unavailable` ausführen. Ein Ergebnis "unavailable" bestätigt
+nur, dass beide Leseaufrufe fehlgeschlagen sind; es beweist nicht den
+Grund (Widerruf, fehlende App, Apple-Authentifizierung usw.). Vorher muss
+der positive Lesetest erfolgreich sein. Keine Wiedergabeaktion wird
+angefordert. Der Test richtet keinen Kurzbefehl ein und ändert keine
+App-Freigaben. Erst der positive Test und der negative Test am Gerät
+ermöglichen die Abnahme des lokalen Lesewegs.
+
 ## Tests
 
 `python3 -m unittest discover -s scripts/redbit-mcp -v`
 
-31 lokale Protokoll-/Privacy-/Bridge-Tests (simuliertes shortcuts-Programm),
+37 lokale Protokoll-/Privacy-/Bridge-Tests (simuliertes shortcuts-Programm),
 keine echte macOS-/iPhone-Geräteabnahme. Die tatsächliche App-Antwort, Apple-
 Authentifizierung und der konkrete Host müssen noch gemeinsam erprobt werden.
 Die macOS-Brücke ist kein iOS- oder Windows-Dienst und kein ChatGPT-Cloud-Connector.
