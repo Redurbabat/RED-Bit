@@ -79,3 +79,77 @@ enum RedBitTransportCommand: String, Encodable {
         }
     }
 }
+
+/// Begrenzte, typisierte Einstellungen; keine frei interpretierbaren Befehle.
+enum RedBitAdjustment {
+    case volumePercent(Double)
+    case seekSeconds(Double)
+    case automix(Bool)
+
+    enum Decision: String, Encodable {
+        case requested, unchanged, locked, unavailable, invalidValue
+    }
+
+    var command: String {
+        switch self {
+        case .volumePercent: return "setVolume"
+        case .seekSeconds: return "seek"
+        case .automix: return "setAutomix"
+        }
+    }
+
+    func decision(status: RedBitAutomationStatus, volume: Double,
+                  duration: Double, loaded: Bool, mixing: Bool,
+                  automixEnabled: Bool) -> Decision {
+        guard !status.controlsLocked else { return .locked }
+        switch self {
+        case .volumePercent(let percent):
+            guard percent.isFinite, (0...100).contains(percent) else { return .invalidValue }
+            return abs(volume - percent / 100) < 0.0001 ? .unchanged : .requested
+        case .seekSeconds(let seconds):
+            guard seconds.isFinite, seconds >= 0 else { return .invalidValue }
+            guard status.hasTrack, loaded, !mixing,
+                  status.state == .playing || status.state == .paused,
+                  duration.isFinite, duration > 0 else { return .unavailable }
+            guard seconds <= duration else { return .invalidValue }
+            return .requested
+        case .automix(let enabled):
+            if automixEnabled == enabled { return .unchanged }
+            guard !mixing else { return .unavailable }
+            return .requested
+        }
+    }
+
+    struct Receipt: Encodable {
+        let version = 1
+        let command: String
+        let decision: Decision
+        let status: RedBitAutomationStatus
+        let volumePercent: Double?
+        let automixEnabled: Bool?
+
+        init(adjustment: RedBitAdjustment, decision: Decision,
+             status: RedBitAutomationStatus, volume: Double, automixEnabled: Bool) {
+            self.command = adjustment.command
+            self.decision = decision
+            self.status = status
+            switch adjustment {
+            case .volumePercent:
+                self.volumePercent = volume.isFinite && (0...1).contains(volume) ? (volume * 100).rounded() : nil
+                self.automixEnabled = nil
+            case .automix:
+                self.volumePercent = nil
+                self.automixEnabled = automixEnabled
+            case .seekSeconds:
+                self.volumePercent = nil
+                self.automixEnabled = nil
+            }
+        }
+
+        func json() throws -> String {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.sortedKeys]
+            return String(decoding: try encoder.encode(self), as: UTF8.self)
+        }
+    }
+}

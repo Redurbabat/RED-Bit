@@ -236,6 +236,32 @@ enum AppIntentActions {
         ).json()
     }
 
+    /// Eingaben und aktuelle Wiedergabegeneration werden synchron geprüft.
+    /// Die Quittung enthält keinen ungeprüften Parameter und keine Musikdaten.
+    static func adjust(_ adjustment: RedBitAdjustment) throws -> String {
+        let controller = AppServices.shared.controller
+        let decision = adjustment.decision(
+            status: statusSnapshot(controller), volume: controller.volume,
+            duration: controller.duration,
+            loaded: controller.engineLoadedId != nil && controller.engineLoadedId == controller.current?.id,
+            mixing: controller.smartMixInProgress, automixEnabled: controller.automixEnabled
+        )
+        if decision == .requested {
+            switch adjustment {
+            case .volumePercent(let percent):
+                controller.volume = percent / 100
+            case .seekSeconds(let seconds):
+                controller.seek(to: seconds)
+            case .automix(let enabled):
+                controller.setAutomixEnabled(enabled)
+            }
+        }
+        return try RedBitAdjustment.Receipt(
+            adjustment: adjustment, decision: decision, status: statusSnapshot(controller),
+            volume: controller.volume, automixEnabled: controller.automixEnabled
+        ).json()
+    }
+
     /// Play or pause, and say which happened.
     static func togglePlayback() async throws -> String {
         let controller = AppServices.shared.controller
@@ -391,6 +417,60 @@ struct PreviousRedBitIntent: AppIntent {
 
     func perform() async throws -> some IntentResult & ReturnsValue<String> {
         .result(value: try await AppIntentActions.transport(.previous))
+    }
+}
+
+struct SetRedBitVolumeIntent: AppIntent {
+    static var title: LocalizedStringResource = "Set RED Bit Volume"
+    static var description = IntentDescription("Set the app volume to a value from 0 to 100 percent.")
+    static var openAppWhenRun = false
+    static var authenticationPolicy: IntentAuthenticationPolicy = .requiresAuthentication
+
+    @Parameter(title: "Volume (%)")
+    var percent: Double
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("Set RED Bit Volume: \(\.$percent)")
+    }
+
+    func perform() async throws -> some IntentResult & ReturnsValue<String> {
+        .result(value: try await AppIntentActions.adjust(.volumePercent(percent)))
+    }
+}
+
+struct SeekRedBitIntent: AppIntent {
+    static var title: LocalizedStringResource = "Seek in RED Bit"
+    static var description = IntentDescription("Request a position in seconds within the loaded track.")
+    static var openAppWhenRun = false
+    static var authenticationPolicy: IntentAuthenticationPolicy = .requiresAuthentication
+
+    @Parameter(title: "Position (seconds)")
+    var seconds: Double
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("Seek in RED Bit: \(\.$seconds)")
+    }
+
+    func perform() async throws -> some IntentResult & ReturnsValue<String> {
+        .result(value: try await AppIntentActions.adjust(.seekSeconds(seconds)))
+    }
+}
+
+struct SetRedBitAutomixIntent: AppIntent {
+    static var title: LocalizedStringResource = "Set RED Bit Automix"
+    static var description = IntentDescription("Enable or disable Automix explicitly.")
+    static var openAppWhenRun = false
+    static var authenticationPolicy: IntentAuthenticationPolicy = .requiresAuthentication
+
+    @Parameter(title: "Automix enabled")
+    var enabled: Bool
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("Set RED Bit Automix: \(\.$enabled)")
+    }
+
+    func perform() async throws -> some IntentResult & ReturnsValue<String> {
+        .result(value: try await AppIntentActions.adjust(.automix(enabled)))
     }
 }
 

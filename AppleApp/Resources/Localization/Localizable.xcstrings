@@ -14092,6 +14092,126 @@
         }
       }
     },
+    "Set RED Bit Volume" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RED Bit Lautstärke einstellen"
+          }
+        }
+      }
+    },
+    "Set the app volume to a value from 0 to 100 percent." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App-Lautstärke auf einen Wert von 0 bis 100 Prozent einstellen."
+          }
+        }
+      }
+    },
+    "Volume (%)" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lautstärke (%)"
+          }
+        }
+      }
+    },
+    "Set RED Bit Volume: %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RED Bit Lautstärke einstellen: %@"
+          }
+        }
+      }
+    },
+    "Seek in RED Bit" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RED Bit Wiedergabeposition einstellen"
+          }
+        }
+      }
+    },
+    "Request a position in seconds within the loaded track." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Position in Sekunden innerhalb des geladenen Titels anfordern."
+          }
+        }
+      }
+    },
+    "Position (seconds)" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Position (Sekunden)"
+          }
+        }
+      }
+    },
+    "Seek in RED Bit: %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RED Bit Wiedergabeposition einstellen: %@"
+          }
+        }
+      }
+    },
+    "Set RED Bit Automix" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RED Bit Automix einstellen"
+          }
+        }
+      }
+    },
+    "Enable or disable Automix explicitly." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automix gezielt ein- oder ausschalten."
+          }
+        }
+      }
+    },
+    "Automix enabled" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automix aktiviert"
+          }
+        }
+      }
+    },
+    "Set RED Bit Automix: %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RED Bit Automix einstellen: %@"
+          }
+        }
+      }
+    },
     "Playback position" : {
       "localizations" : {
         "de" : {

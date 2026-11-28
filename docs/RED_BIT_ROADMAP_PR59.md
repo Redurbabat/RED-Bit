@@ -87,3 +87,8 @@ Der Branch `feat/red-bit-audio-continuity-20261128` basiert auf PR #59 (bd15a0f)
 - Vier zusätzliche authentifizierte Kurzbefehle für Play/Pause/Next/Previous. Zustand und Party-Sperren vor Ausführung auf dem MainActor prüfen. Wiederholtes Play/Pause schaltet nicht versehentlich um; Navigation bleibt absichtlich nicht idempotent.
 - Versionierte, private Quittung mit requested/unchanged/locked/unavailable; kein hörbarer Erfolgsnachweis. Kein neuer Remote-Transport.
 - Policy-Gegenproben für alle Zustände, Sperren, leere Auswahl, Navigationsgrenzen und Quittung. Geräteabnahme ausstehend.
+
+### RED MCP – lokale Audio-Einstellungen
+- Drei typisierte, authentifizierungspflichtige Kurzbefehle für Lautstärke (App-Regler), Seek und Automix an/aus. Grenzen und nicht endliche Werte prüfen, Party-Sperren respektieren, Seek/Automix-Wechsel bei aktiver Überblendung ablehnen.
+- Eigene private Quittung ohne ungültige Parameter oder Musikdaten. Keine Änderung der Systemlautstärke, keine neue RED-ID-Berechtigung und kein Remote-Listener.
+- Policy-Gegenproben für Grenzen, Sperren, Pufferzustand, fehlende Dauer, laufende Überblendung, wiederholte Einstellungen und Quittungen ergänzt. Geräteprüfung ausstehend.

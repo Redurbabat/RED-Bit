@@ -36,6 +36,24 @@ wurde. Keine Garantie, dass asynchrones Laden oder Audioausgabe gelingt.
 Bei leerer Auswahl startet die Aktion keine neue Queue.
 Keine Remote-Befehle, kein Netzwerk-Listener, keine neue RED-ID-Berechtigung.
 
+## Lokale Audio-Einstellungen
+
+Drei weitere Kurzbefehle mit Systemauthentifizierung:
+- Lautstärke einstellen: App-Regler 0–100 Prozent, keine Änderung der Systemlautstärke.
+- Wiedergabeposition einstellen: Sekunden innerhalb der bekannten Dauer des geladenen Titels.
+  Nur pausierte/spielende Auswahl; während Laden oder Automix-Überblendung abgelehnt.
+- Automix einstellen: explizit an/aus, unveränderte Werte ohne erneute Einrichtung;
+  Wechsel während laufender Überblendung abgelehnt.
+
+Alle drei prüfen Party-Sperren. Nicht endliche oder ausserhalb der Grenzen liegende
+Werte werden als `invalidValue` abgelehnt, nicht still korrigiert.
+Quittung: version, command, decision (requested/unchanged/locked/unavailable/invalidValue),
+status; bei Lautstärke bzw. Automix zusätzlich der entsprechende beobachtete App-Wert.
+Ein angeforderter Seek oder Automix-Wechsel ist noch kein hörbarer Erfolgsnachweis.
+Keine automatische Remote-Ausführung. Die bestehenden acht lokalen Aktionen
+(Status, vier Transportaktionen, drei Audio-Einstellungen) sind erst nach Installation
+der entsprechenden App-Version verfügbar.
+
 ## Noch nicht verfügbar
 
 Dies ist **kein MCP-Server**. Der App Intent ist eine lokale, vom System

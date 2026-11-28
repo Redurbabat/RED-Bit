@@ -93,6 +93,42 @@ import Foundation
         let receiptObject = try! JSONSerialization.jsonObject(with: Data(try! receipt.json().utf8)) as! [String: Any]
         precondition(Set(receiptObject.keys) == Set(["version", "command", "decision", "status"]))
         precondition(receiptObject["decision"] as? String == "requested")
-        print("PASS stream recovery, output watchdog, private status and explicit transport commands")
+        func adjust(_ command: RedBitAdjustment, state: RedBitAutomationStatus.State = .playing,
+                    locked: Bool = false, loaded: Bool = true, mixing: Bool = false,
+                    duration: Double = 100, enabled: Bool = false) -> RedBitAdjustment.Decision {
+            command.decision(status: snapshot(state, locked: locked), volume: 0.5,
+                             duration: duration, loaded: loaded, mixing: mixing, automixEnabled: enabled)
+        }
+        for value in [-1.0, 100.1, Double.nan, Double.infinity] {
+            precondition(adjust(.volumePercent(value)) == .invalidValue)
+        }
+        precondition(adjust(.volumePercent(0)) == .requested)
+        precondition(adjust(.volumePercent(100)) == .requested)
+        precondition(adjust(.volumePercent(50)) == .unchanged)
+        precondition(adjust(.seekSeconds(0)) == .requested)
+        precondition(adjust(.seekSeconds(100)) == .requested)
+        precondition(adjust(.seekSeconds(101)) == .invalidValue)
+        precondition(adjust(.seekSeconds(-1)) == .invalidValue)
+        precondition(adjust(.seekSeconds(.nan)) == .invalidValue)
+        precondition(adjust(.seekSeconds(1), duration: .infinity) == .unavailable)
+        precondition(adjust(.seekSeconds(1), duration: 0) == .unavailable)
+        precondition(adjust(.seekSeconds(1), loaded: false) == .unavailable)
+        precondition(adjust(.seekSeconds(1), state: .buffering) == .unavailable)
+        precondition(adjust(.seekSeconds(1), state: .paused) == .requested)
+        precondition(adjust(.seekSeconds(1), mixing: true) == .unavailable)
+        precondition(adjust(.automix(true)) == .requested)
+        precondition(adjust(.automix(false)) == .unchanged)
+        precondition(adjust(.automix(true), mixing: true) == .unavailable)
+        for command in [RedBitAdjustment.volumePercent(25), .seekSeconds(5), .automix(true)] {
+            precondition(adjust(command, locked: true) == .locked)
+        }
+        let invalidReceipt = RedBitAdjustment.Receipt(adjustment: .volumePercent(.nan),
+            decision: .invalidValue, status: snapshot(.playing), volume: .infinity, automixEnabled: false)
+        let invalidObject = try! JSONSerialization.jsonObject(with: Data(try! invalidReceipt.json().utf8)) as! [String: Any]
+        precondition(Set(invalidObject.keys) == Set(["version", "command", "decision", "status"]))
+        let validReceipt = RedBitAdjustment.Receipt(adjustment: .volumePercent(50),
+            decision: .unchanged, status: snapshot(.playing), volume: 0.5, automixEnabled: false)
+        precondition(validReceipt.volumePercent == 50 && validReceipt.automixEnabled == nil)
+        print("PASS stream recovery, output watchdog, private status, transport and adjustment policy")
     }
 }
