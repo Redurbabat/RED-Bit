@@ -67,3 +67,9 @@ Der Branch `feat/red-bit-audio-continuity-20261128` basiert auf PR #59 (bd15a0f)
 - Messung PR #59: Kotlin 650 s, Rust 494 s; beide Framework-Misses trotz allgemeinem Actions-Cache.
 - Separate quell-/toolchainbasierte Cache-Schlüssel, sofortiges Speichern erfolgreicher Frameworks, Cache-Diagnose und Zeiten in der Build-Zusammenfassung. Kein Parallelbau erzwungen (CPU/RAM-Konkurrenz noch nicht gemessen).
 - Fixture-Prüfungen für reine Swift-Änderungen, unabhängige native Änderungen, lokale Buildkonfiguration und beschädigtes Archiv erweitert. Tatsächlicher macOS-Warmbau steht aus; keine neue IPA aus diesem Folge-PR gestartet.
+
+### Energiesparbetrieb und Ausgabeschutz
+- System-Stromsparmodus begrenzt spekulative URL-Auflösungen auf null und überspringt zusätzliche DJ-/Queue-Analyse; echte Next-Track-Vorbereitung und Sicherheitsüberblendung bleiben aktiv. Pause beendet URL- und Sequencing-Aufgaben, Fortsetzung startet sie bei Bedarf neu. Keine Änderung von Audioqualität oder gespeicherten Einstellungen.
+- Offline-Sequencing betrachtet nur fertige Cachedateien. Pausierte, puffernde oder leere Auswahl setzt Watchdog-Beobachtung ohne wiederholte native Statusabfragen zurück; gestoppte geladene Quellen behalten Fehlerbehandlung.
+- Output-Watchdog prüft Transportgeneration und Mix vor und nach Session-Aktivierung; bestätigter Reparaturfehler führt zu Pause statt stiller Wiedergabeanzeige.
+- Sieben neue Policy-Prüfungen. Bereits laufende native Analyse kann noch auslaufen; Akkueinsparung und Audioverhalten müssen am Gerät gemessen werden.

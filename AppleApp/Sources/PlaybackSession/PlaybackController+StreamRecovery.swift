@@ -32,6 +32,15 @@ extension PlaybackController {
             deferredNetworkRecovery = nil
         }
         let now = ProcessInfo.processInfo.systemUptime
+        // Im Leerlauf weder Ausgabestatus noch Positionsdaten des Mixers
+        // viermal pro Sekunde abfragen. Fehler eines geladenen gestoppten
+        // Titels bleiben bewusst über den regulären Pfad erreichbar.
+        if state == .paused || state == .buffering || current == nil {
+            _ = outputWatchdog.observe(selection: playGeneration, position: 0, now: now,
+                                       playing: false, bufferedFrames: 0)
+            _ = streamRecovery.observe(position: 0, now: now, playing: false, bufferedFrames: 0)
+            return
+        }
         let health = engine.outputHealth()
         if outputWatchdog.observe(selection: playGeneration, position: playbackPosition, now: now,
                                   playing: state == .playing && !smartMixInProgress && dolbyRenderer == nil && engineLoadedId != nil,
@@ -49,11 +58,7 @@ extension PlaybackController {
             streamRecoveryPathChanges = NetworkQuality.shared.pathChanges
             if let entry = current { streamRecovery.select(entry.id, resetAttempts: false) }
         }
-        if state == .paused || state == .buffering {
-            _ = streamRecovery.observe(position: playbackPosition, now: ProcessInfo.processInfo.systemUptime, playing: false, bufferedFrames: 0)
-            return // Keep source failures queued until the listener resumes.
-        }
-        // Fehler aus einer laufenden Überblendung erst nach dem Handoff
+         // Fehler aus einer laufenden Überblendung erst nach dem Handoff
         // zuordnen; ein bereits gestoppter Mixer kann direkt wiederherstellen.
         guard !smartMixInProgress || state == .stopped else { return }
         for failure in engine.drainSourceErrors() {

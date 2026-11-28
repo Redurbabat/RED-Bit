@@ -46,6 +46,7 @@ extension PlaybackController {
             // and the resolved URL are the expensive part, and throwing them
             // away made the next tap start from nothing.
             holdAfterLoad = true
+            stopSpeculativePlaybackWork()
             state = .paused
             nowPlaying.updateRate(0, position: position)
             VideoPlayback.shared.transportClockChanged()
@@ -166,6 +167,8 @@ extension PlaybackController {
                         self.positionSampledAt = Date()
                         self.nowPlaying.updateRate(speed, position: self.position)
                         self.nowPlaying.playbackDidStart()
+                        self.refreshUpcomingURLPrefetch()
+                        self.scheduleSequencing()
                         VideoPlayback.shared.transportClockChanged()
                     } catch {
                         self.nowPlaying.updateRate(0, position: self.position)
@@ -195,7 +198,17 @@ extension PlaybackController {
         persistSession()
     }
 
+    func stopSpeculativePlaybackWork() {
+        urlPrefetchTask?.cancel()
+        urlPrefetchTask = nil
+        urlPrefetchFingerprint = nil
+        sequencingTask?.cancel()
+        sequencingTask = nil
+        sequencingGeneration &+= 1
+    }
+
     func pausePlayback(releaseAudioSession: Bool = false) {
+        stopSpeculativePlaybackWork()
         cancelAutoplayEndWait()
         // Beim Warten auf Netz gibt es keinen Load, den holdAfterLoad
         // fortsetzen könnte. Eine bewusste Pause speichert stattdessen

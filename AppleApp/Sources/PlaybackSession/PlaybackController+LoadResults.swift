@@ -428,14 +428,15 @@ extension PlaybackController {
                         safetyPlan?.fadeSeconds ?? 0
                     )
                 }
-                guard automix, !currentSource.isEmpty else { return }
+                guard automix, !currentSource.isEmpty,
+                      !ProcessInfo.processInfo.isLowPowerModeEnabled else { return }
                 let fade = Double(PlatformSettings.shared.getInt(key: "crossfade_seconds", default: 0))
                 // ResolveSource returns when the progressive intro is on disk.
                 // Analyze it now against the queued safety overlap, then refresh
                 // the plan as more of either file arrives while the mixer is arming.
                 var attempt = 0
                 let analysisStarted = ProcessInfo.processInfo.systemUptime
-                while PlaybackPreparationPolicy.shouldAnalyze(
+                while !ProcessInfo.processInfo.isLowPowerModeEnabled && PlaybackPreparationPolicy.shouldAnalyze(
                     attempt: attempt, elapsed: ProcessInfo.processInfo.systemUptime - analysisStarted,
                     outgoingDuration: outgoingDuration, position: engine.positionSeconds(),
                     fadeSeconds: safetyFade
@@ -447,6 +448,10 @@ extension PlaybackController {
                             && self.nextEntry?.id == nextId
                             && self.current?.id == outgoingId
                             && self.queueNextRevision == revision
+                            && PlaybackPreparationPolicy.allowsExtraAnalysis(
+                                active: self.state == .playing || self.state == .buffering,
+                                lowPower: ProcessInfo.processInfo.isLowPowerModeEnabled
+                            )
                     }
                     guard stillPlanning else { return }
                     // C's instrumentation: a transition is being armed against
@@ -476,7 +481,7 @@ extension PlaybackController {
                             filePath: currentSource, allowAccelerator: allowMusicUnderstanding
                         )
                         try Task.checkCancellation()
-                        guard gate.isCurrent(generation, revision: revision),
+                        guard !ProcessInfo.processInfo.isLowPowerModeEnabled, gate.isCurrent(generation, revision: revision),
                               PlaybackPreparationPolicy.shouldAnalyze(
                                 attempt: attempt, elapsed: ProcessInfo.processInfo.systemUptime - analysisStarted,
                                 outgoingDuration: outgoingDuration, position: engine.positionSeconds(), fadeSeconds: safetyFade
@@ -493,7 +498,7 @@ extension PlaybackController {
                         }
                     }
                     try Task.checkCancellation()
-                    guard gate.isCurrent(generation, revision: revision),
+                    guard !ProcessInfo.processInfo.isLowPowerModeEnabled, gate.isCurrent(generation, revision: revision),
                           PlaybackPreparationPolicy.shouldAnalyze(
                             attempt: attempt, elapsed: ProcessInfo.processInfo.systemUptime - analysisStarted,
                             outgoingDuration: outgoingDuration, position: engine.positionSeconds(), fadeSeconds: safetyFade
@@ -516,7 +521,8 @@ extension PlaybackController {
                         outgoingDuration: outgoingDuration, incomingDuration: incomingDuration
                     )
                     try Task.checkCancellation()
-                    guard PlaybackPreparationPolicy.shouldAnalyze(
+                    guard !ProcessInfo.processInfo.isLowPowerModeEnabled,
+                          PlaybackPreparationPolicy.shouldAnalyze(
                         attempt: attempt, elapsed: ProcessInfo.processInfo.systemUptime - analysisStarted,
                         outgoingDuration: outgoingDuration, position: engine.positionSeconds(),
                         fadeSeconds: max(plan.fadeSeconds, safetyFade)

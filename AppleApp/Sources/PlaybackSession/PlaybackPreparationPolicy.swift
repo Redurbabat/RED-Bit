@@ -17,6 +17,17 @@ enum PlaybackPreparationPolicy {
         return outgoingDuration - position > max(0, fadeSeconds) + 8
     }
 
+    /// Nur spekulative Arbeiten begrenzen. Der tatsächliche nächste
+    /// Titel, die Sicherheitsüberblendung und Recovery bleiben aktiv.
+    static func speculativeURLCount(active: Bool, metered: Bool, lowPower: Bool) -> Int {
+        guard active, !lowPower else { return 0 }
+        return metered ? 1 : 3
+    }
+
+    static func allowsExtraAnalysis(active: Bool, lowPower: Bool) -> Bool {
+        active && !lowPower
+    }
+
     /// Ein Fehler im Planner oder in der Engine beweist nicht, dass die
     /// erfolgreich vorbereitete Musikquelle unspielbar ist.
     static func mayMarkUnplayable(sourcePrepared: Bool) -> Bool {

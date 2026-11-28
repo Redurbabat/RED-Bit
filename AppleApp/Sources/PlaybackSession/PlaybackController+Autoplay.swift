@@ -372,7 +372,11 @@ extension PlaybackController {
     func scheduleSequencing() {
         sequencingTask?.cancel()
         sequencingGeneration &+= 1
-        guard automixSequencingEnabled, let current else { return }
+        guard automixSequencingEnabled, let current,
+              PlaybackPreparationPolicy.allowsExtraAnalysis(
+                active: state == .playing || state == .buffering,
+                lowPower: ProcessInfo.processInfo.isLowPowerModeEnabled
+              ) else { return }
         let generation = sequencingGeneration
         let snapshot = queue
         let index = playingIndex
@@ -400,7 +404,7 @@ extension PlaybackController {
             if let currentPath, FileManager.default.fileExists(atPath: currentPath), listPositions.count > 1 {
                 var candidates: [(position: Int, path: String, text: String)] = []
                 for position in PlaybackQueuePolicy.ranked(listPositions, scores: fallback) {
-                    if Task.isCancelled { return }
+                    if Task.isCancelled || ProcessInfo.processInfo.isLowPowerModeEnabled { return }
                     let entry = snapshot[position]
                     let path: String?
                     if entry.isLocal, FileManager.default.fileExists(atPath: entry.source) {
@@ -426,7 +430,7 @@ extension PlaybackController {
                 var previousPath = currentPath
                 var previousText = current.itemText
                 while !remaining.isEmpty {
-                    if Task.isCancelled { return }
+                    if Task.isCancelled || ProcessInfo.processInfo.isLowPowerModeEnabled { return }
                     let ranked = await AutomixQueueRanker.shared.rank(
                         currentPath: previousPath,
                         candidatePaths: remaining.map(\.path),
@@ -454,13 +458,13 @@ extension PlaybackController {
                     var texts: [String] = []
                     var available: [Int] = []
                     for position in positions {
-                        if Task.isCancelled { return }
+                        if Task.isCancelled || ProcessInfo.processInfo.isLowPowerModeEnabled { return }
                         let entry = snapshot[position]
                         let path: String?
                         if entry.isLocal, FileManager.default.fileExists(atPath: entry.source) {
                             path = entry.source
                         } else if entry.source.hasPrefix("yt:"), let id = entry.videoId {
-                            path = await StreamFileCache.shared.path(for: id)
+                            path = await StreamFileCache.shared.path(for: id, allowGrowing: false)
                         } else { path = nil }
                         if let path, FileManager.default.fileExists(atPath: path) {
                             paths.append(path)
@@ -490,6 +494,10 @@ extension PlaybackController {
                 )
             }
             guard let self, !Task.isCancelled, self.sequencingGeneration == generation,
+                  PlaybackPreparationPolicy.allowsExtraAnalysis(
+                    active: self.state == .playing || self.state == .buffering,
+                    lowPower: ProcessInfo.processInfo.isLowPowerModeEnabled
+                  ),
                   self.automixSequencingEnabled, self.queue == snapshot, self.playingIndex == index,
                   self.playGeneration == playbackGeneration, self.current?.id == current.id,
                   PageSession.generation() == sessionGeneration else { return }
