@@ -180,6 +180,26 @@ private enum CachedSongs {
 /// title, a parameter and the sentence to say back.
 @MainActor
 enum AppIntentActions {
+    /// Status ohne Musiktitel, Konto, URLs oder private Fehlertexte.
+    /// Liest nur das vorhandene Controller-Modell, kein Netzwerkzugriff.
+    static func playbackStatus() throws -> String {
+        let controller = AppServices.shared.controller
+        let state: RedBitAutomationStatus.State
+        switch controller.state {
+        case .stopped: state = .stopped
+        case .buffering: state = .buffering
+        case .playing: state = .playing
+        case .paused: state = .paused
+        }
+        return try RedBitAutomationStatus(
+            state: state, hasTrack: controller.current != nil,
+            position: controller.position, duration: controller.duration,
+            canNext: controller.canPlayNext, canPrevious: controller.canPlayPrevious,
+            controlsLocked: PartyStore.shared.state.controlsLocked,
+            hasPlaybackError: controller.lastError != nil
+        ).json()
+    }
+
     /// Play or pause, and say which happened.
     static func togglePlayback() async throws -> String {
         let controller = AppServices.shared.controller
@@ -279,6 +299,20 @@ enum AppIntentActions {
 }
 
 // MARK: - The intents
+
+/// Lokale, explizite Abfrage über Kurzbefehle. Kein Listener, keine
+/// automatische Freigabe an RED ID, MCP, Siri-Drittanbieter oder Server.
+struct ReadPlaybackStatusIntent: AppIntent {
+    static var title: LocalizedStringResource = "Read RED Bit Playback Status"
+    static var description = IntentDescription("Read limited playback status as JSON without song or account details.")
+    static var openAppWhenRun = false
+    static var authenticationPolicy: IntentAuthenticationPolicy = .requiresAuthentication
+
+    func perform() async throws -> some IntentResult & ReturnsValue<String> {
+        let result = try await AppIntentActions.playbackStatus()
+        return .result(value: result)
+    }
+}
 
 /// Play or pause what is already loaded. Background-capable: a listener who says
 /// "pause" is not asking for a window.

@@ -52,6 +52,22 @@ import Foundation
         precondition(!output.observe(selection: 2, position: 4, now: 110, playing: true, bufferedFrames: 1024))
         precondition(!output.observe(selection: 2, position: 5, now: 121, playing: true, bufferedFrames: 1024))
         precondition(output.observe(selection: 2, position: 5, now: 133, playing: true, bufferedFrames: 1024))
-        print("PASS stream recovery and bounded output watchdog")
+        let status = RedBitAutomationStatus(state: .playing, hasTrack: true, position: 125.9,
+            duration: 120.9, canNext: true, canPrevious: true, controlsLocked: false, hasPlaybackError: false)
+        let statusData = Data(try! status.json().utf8)
+        let object = try! JSONSerialization.jsonObject(with: statusData) as! [String: Any]
+        precondition(Set(object.keys) == Set(["version", "state", "hasTrack", "positionSeconds",
+            "durationSeconds", "canNext", "canPrevious", "controlsLocked", "hasPlaybackError"]))
+        precondition(object["version"] as? Int == 1 && object["state"] as? String == "playing")
+        precondition(status.positionSeconds == 120 && status.durationSeconds == 120)
+        let locked = RedBitAutomationStatus(state: .buffering, hasTrack: true, position: .nan,
+            duration: .infinity, canNext: true, canPrevious: true, controlsLocked: true, hasPlaybackError: true)
+        precondition(!locked.canNext && !locked.canPrevious && locked.controlsLocked)
+        precondition(locked.positionSeconds == nil && locked.durationSeconds == nil)
+        precondition((try? locked.json()) != nil)
+        let empty = RedBitAutomationStatus(state: .playing, hasTrack: false, position: 99,
+            duration: 100, canNext: false, canPrevious: false, controlsLocked: false, hasPlaybackError: false)
+        precondition(empty.state == .stopped && empty.positionSeconds == nil && empty.durationSeconds == nil)
+        print("PASS stream recovery, bounded output watchdog and private automation status")
     }
 }

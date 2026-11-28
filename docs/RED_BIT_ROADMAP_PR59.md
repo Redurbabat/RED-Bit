@@ -78,3 +78,7 @@ Der Branch `feat/red-bit-audio-continuity-20261128` basiert auf PR #59 (bd15a0f)
 - Mini-Player auf iPhone/iPad/Mac verwendet denselben Play/Pause-Ladezustand: Spinner mit Pause-Symbol und bedienbarem Knopf statt blockiertem Spinner. Auf iPad grössere Play/Pause-Trefffläche; bestehende native Glasfläche und Zoom bleiben unverändert.
 - Full Player und Arc-Variante benennen die Ladeaktion korrekt als Pause. Direktzugriffe auf Lyrics/Queue werden beim ersten Öffnen und in bestehenden Player-Ansichten verarbeitet, ohne die andere Anfrage stehenzulassen.
 - Zwei zusätzliche statische Quellprüfungen; keine neue visuelle Geräteabnahme oder vollständige Neugestaltung behauptet. Bestehende deutsche Schlüssel Pause/Wiedergabe/Queue/Lyrics wiederverwendet.
+
+### RED MCP – lokale Grundlage
+- Versionierte, rein lesende Statusprojektion mit festen Feldern, ohne Titel/Künstler/URLs/IDs/Tokens/Dateipfade oder Fehlertexte. Authentifizierungspflichtiger lokaler App Intent für Kurzbefehle, keine neue Netzwerkfreigabe.
+- RED ID bleibt ausschliesslich bei identity:read. Remote-MCP, zusätzliche Berechtigungen, Freigabe/Widerruf und Transportsteuerung über Server sind noch nicht implementiert. Sieben zusätzliche Statusprüfungen in der Recovery-Suite, Apple-CI ausstehend.
