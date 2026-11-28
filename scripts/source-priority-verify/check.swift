@@ -17,6 +17,15 @@ private actor SwapResultProbe {
         precondition(PlaybackPreparationPolicy.lookupBudget(remainingSeconds: 15, transitionSeconds: 8) == 5)
         precondition(PlaybackPreparationPolicy.lookupBudget(remainingSeconds: 10, transitionSeconds: 30) == 0.8)
         precondition(PlaybackPreparationPolicy.lookupBudget(remainingSeconds: 0, transitionSeconds: 0) == 0.8)
+        precondition(PlaybackPreparationPolicy.shouldAnalyze(attempt: 0, elapsed: 0, outgoingDuration: 180, position: 20, fadeSeconds: 8))
+        precondition(!PlaybackPreparationPolicy.shouldAnalyze(attempt: 0, elapsed: 0, outgoingDuration: 25, position: 10, fadeSeconds: 8))
+        precondition(!PlaybackPreparationPolicy.shouldAnalyze(attempt: 12, elapsed: 10, outgoingDuration: 180, position: 20, fadeSeconds: 8))
+        precondition(!PlaybackPreparationPolicy.shouldAnalyze(attempt: 1, elapsed: 24, outgoingDuration: 180, position: 20, fadeSeconds: 8))
+        precondition(PlaybackPreparationPolicy.shouldAnalyze(attempt: 0, elapsed: 0, outgoingDuration: 0, position: 0, fadeSeconds: 8))
+        precondition(!PlaybackPreparationPolicy.shouldAnalyze(attempt: 1, elapsed: 2, outgoingDuration: 0, position: 0, fadeSeconds: 8))
+        precondition(!PlaybackPreparationPolicy.shouldAnalyze(attempt: 0, elapsed: 0, outgoingDuration: 180, position: .nan, fadeSeconds: 8))
+        precondition(PlaybackPreparationPolicy.mayMarkUnplayable(sourcePrepared: false))
+        precondition(!PlaybackPreparationPolicy.mayMarkUnplayable(sourcePrepared: true))
         typealias Race = PlaybackSourceRace<String, String>
         let preferred = Race(preferPrimary: true)
         await preferred.finishFallback("youtube")
@@ -122,6 +131,6 @@ private actor SwapResultProbe {
         while await superseded.count() == 0 { await Task.yield() }
         await superseded.supersede()
         guard await obsolete.value == nil else { fatalError("An obsolete track must not update source metadata") }
-        print("PASS source priority (11), submitted swap reconciliation (3), next-track timing (4 scenarios)")
+        print("PASS source priority (11), submitted swap reconciliation (3), next-track timing and bounded Automix planning (13 scenarios)")
     }
 }

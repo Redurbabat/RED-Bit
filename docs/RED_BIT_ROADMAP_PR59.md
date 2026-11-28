@@ -57,3 +57,8 @@ Der Branch `feat/red-bit-audio-continuity-20261128` basiert auf PR #59 (bd15a0f)
 - Offline-Liste blendet falsche Dateigrössen, ungültige Manifestversionen, unbekannte Codecs und Fehler-/Abbruchmarker aus; SHA-256 bleibt beim Öffnen verbindlich.
 - URL-Vorwärmung an Auswahlgeneration und Netzpfad koppeln, keine Auflösung nach Task-Abbruch, nur noch kommende Queue-Einträge. Bestehendes Limit 1 (Mobilfunk) / 3 (WLAN) bleibt.
 - Drei neue Download-/Cache-Gegenproben; vollständige Apple-CI und Geräteabnahme stehen aus.
+
+### RED DJ – begrenzte Automix-Planung
+- Eine erfolgreich vorbereitete Quelle wird bei einem späteren Planungs-/Enginefehler nicht mehr als unspielbar markiert. Sicherheitsüberblendung oder normaler EOS-Load bleibt möglich.
+- Zusätzliche Planung startet/erneuert sich nur innerhalb eines Budgets von 12 Versuchen und 24 Sekunden, mit mindestens Fade + 8 Sekunden Vorlauf bei bekannter Länge. Bei unbekannter Länge maximal eine Runde. Prüfungen auch zwischen Analysephasen und vor Übergabe an die Engine. Bereits laufende native Analyse kann das Budget überschreiten; keine harte Unterbrechung versprochen.
+- Neun neue Policy-Gegenproben; keine Änderung der eigentlichen DJ-Analysemodelle oder DSP-Effekte. Vollständige CI und Hörtest ausstehend.
