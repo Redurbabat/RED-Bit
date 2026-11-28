@@ -29,6 +29,97 @@ public struct RedNativeIdentity: Codable, Equatable {
     public let scopes: [String]
     public let expiresAt: String
 }
+/// Momentaufnahme einer separaten Server-Lesefreigabe. Keine Ausführungsrechte.
+public struct RedBitServerPermission: Decodable, Equatable {
+    public let version: Int
+    public let app: String
+    public let scope: String
+    public let expiresAt: Int64
+    public let remoteAvailable: Bool
+
+    public var expiryDate: Date {
+        Date(timeIntervalSince1970: Double(expiresAt) / 1000)
+    }
+
+    static func validated(_ data: Data, now: Date, sessionExpiry: Date) throws -> Self {
+        guard data.count <= 2048,
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              Set(object.keys) == Set(["version", "app", "scope", "expiresAt", "remoteAvailable"]),
+              let value = try? JSONDecoder().decode(Self.self, from: data),
+              value.version == 1, value.app == "red-bit", value.scope == "music:status:read",
+              !value.remoteAvailable, value.expiresAt > 0,
+              value.expiryDate > now,
+              value.expiryDate <= now.addingTimeInterval(3660),
+              value.expiryDate <= sessionExpiry
+        else { throw RedNativeError.invalidResponse }
+        return value
+    }
+}
+
+/// Der Server darf nur einen kurzlebigen, rein lesenden Statusauftrag liefern.
+struct RedBitReadJob: Decodable {
+    let id: String
+    let tool: String
+    let expiresAt: Int64
+    var expiryDate: Date { Date(timeIntervalSince1970: Double(expiresAt) / 1000) }
+
+    static func parseClaim(_ data: Data, now: Date, sessionExpiry: Date) throws -> Self? {
+        guard data.count <= 2048,
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              Set(object.keys) == Set(["version", "job"]),
+              let envelope = try? JSONDecoder().decode(Envelope.self, from: data),
+              envelope.version == 1 else { throw RedNativeError.invalidResponse }
+        if object["job"] is NSNull { return nil }
+        guard let fields = object["job"] as? [String: Any],
+              Set(fields.keys) == Set(["id", "tool", "expiresAt"]),
+              let job = envelope.job, job.tool == "redbit_read_status",
+              job.id.utf8.count == 32, job.id.utf8.allSatisfy({ (48...57).contains($0) || (97...102).contains($0) }),
+              job.expiryDate > now, job.expiryDate <= now.addingTimeInterval(45),
+              job.expiryDate <= sessionExpiry else { throw RedNativeError.invalidResponse }
+        return job
+    }
+
+    private struct Envelope: Decodable {
+        let version: Int
+        let job: RedBitReadJob?
+    }
+
+    private struct Status: Decodable {
+        let version: Int
+        let state: String
+        let hasTrack, canNext, canPrevious, controlsLocked, hasPlaybackError: Bool
+        let positionSeconds, durationSeconds: Double?
+    }
+
+    /// Ausschliesslich die bereits freigegebene, kleine Statusprojektion senden.
+    static func completionBody(id: String, status: String) throws -> Data {
+        let data = Data(status.utf8)
+        let required: Set<String> = ["version", "state", "hasTrack", "canNext", "canPrevious", "controlsLocked", "hasPlaybackError"]
+        let optional: Set<String> = ["positionSeconds", "durationSeconds"]
+        guard data.count <= 1024,
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              required.isSubset(of: Set(object.keys)), Set(object.keys).isSubset(of: required.union(optional)),
+              let value = try? JSONDecoder().decode(Status.self, from: data),
+              value.version == 1, ["stopped", "buffering", "playing", "paused"].contains(value.state)
+        else { throw RedNativeError.invalidResponse }
+        for key in optional where object[key] != nil {
+            let number = key == "positionSeconds" ? value.positionSeconds : value.durationSeconds
+            guard let number, number.isFinite, (0...86_400_000).contains(number)
+            else { throw RedNativeError.invalidResponse }
+        }
+        return try JSONSerialization.data(withJSONObject: ["id": id, "status": object], options: [.sortedKeys])
+    }
+
+    static func validateReceipt(_ data: Data) throws {
+        struct Receipt: Decodable { let ok: Bool }
+        guard data.count <= 1024,
+              let fields = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              Set(fields.keys) == Set(["ok"]),
+              let receipt = try? JSONDecoder().decode(Receipt.self, from: data), receipt.ok
+        else { throw RedNativeError.invalidResponse }
+    }
+}
+
 public protocol RedNativeCredentialStore {
     func load(scope: String) throws -> Data?
     func save(_ value: Data, scope: String) throws
@@ -164,13 +255,21 @@ public actor RedNativeClient {
         return value
     }
     private func request(_ path: String, method: String = "POST", body: [String:String]? = nil, token: String? = nil) async throws -> Data {
-        guard let url = URL(string: origin + "/red-id/v2/" + path) else { throw RedNativeError.invalidOrigin }
+        try await send("/red-id/v2/" + path, method: method, body: body, token: token)
+    }
+
+    private func send(_ path: String, method: String, body: [String:String]? = nil, token: String? = nil, jsonBody: Data? = nil) async throws -> Data {
+        guard let url = URL(string: origin + path) else { throw RedNativeError.invalidOrigin }
         var req = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
         req.httpMethod = method
         req.setValue("no-store", forHTTPHeaderField: "Cache-Control")
         if let body {
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
             req.httpBody = try JSONEncoder().encode(body)
+        }
+        if let jsonBody {
+            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            req.httpBody = jsonBody
         }
         if let token { req.setValue("Bearer " + token, forHTTPHeaderField: "Authorization") }
         let (data, response) = try await session.data(for: req)
@@ -221,6 +320,41 @@ public actor RedNativeClient {
         else { throw RedNativeError.invalidResponse }
         return identity
     }
+    /// Nur auf ausdrücklichen Nutzerwunsch. Keine Status-/Musikdaten werden
+    /// hochgeladen und keine Freigabe wird erteilt. Kein Retry bei 401/403/404.
+    public func redBitPermission() async throws -> RedBitServerPermission {
+        guard app == "red-bit" else { throw RedNativeError.invalidApp }
+        try enter(); defer { busy = false }
+        let value = try await current()
+        let data = try await send("/red-bit/v1/permission", method: "GET", token: value.accessToken)
+        guard let expiry = Self.date(value.refreshExpiresAt) else { throw RedNativeError.invalidResponse }
+        return try RedBitServerPermission.validated(data, now: Date(), sessionExpiry: expiry)
+    }
+
+    /// Ein ausdrücklich bestätigter Lesevorgang, kein Polling oder Retry.
+    /// Der MainActor-Callback prüft unmittelbar vor dem Statuslesen erneut
+    /// die lokale Freigabe und den aktiven Bildschirm.
+    public func respondToRedBitReadJob(status: @MainActor @Sendable () throws -> String) async throws -> Bool {
+        guard app == "red-bit" else { throw RedNativeError.invalidApp }
+        try enter(); defer { busy = false }
+        try Task.checkCancellation()
+        let value = try await current()
+        try Task.checkCancellation()
+        guard let expiry = Self.date(value.refreshExpiresAt) else { throw RedNativeError.invalidResponse }
+        let confirmation = Data("{\"confirm\":true}".utf8)
+        let data = try await send("/red-bit/v1/read-claim", method: "POST", token: value.accessToken, jsonBody: confirmation)
+        guard let job = try RedBitReadJob.parseClaim(data, now: Date(), sessionExpiry: expiry) else { return false }
+        try Task.checkCancellation()
+        let snapshot = try await status()
+        try Task.checkCancellation()
+        guard job.expiryDate > Date() else { throw RedNativeError.invalidResponse }
+        let body = try RedBitReadJob.completionBody(id: job.id, status: snapshot)
+        try Task.checkCancellation()
+        let response = try await send("/red-bit/v1/read-complete", method: "POST", token: value.accessToken, jsonBody: body)
+        try RedBitReadJob.validateReceipt(response)
+        return true
+    }
+
     /// If the server cannot be reached, throws after clearing local credentials.
     /// Remote revocation must then be performed in RED ION settings.
     public func logout() async throws {
