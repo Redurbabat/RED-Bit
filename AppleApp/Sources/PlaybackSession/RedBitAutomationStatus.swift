@@ -275,6 +275,11 @@ enum RedBitLocalAutomationConsent {
     }
 
     static func set(_ scope: Scope, enabled: Bool, defaults: UserDefaults = .standard) {
+        // Auch ohne die UI keine latente Schreibfreigabe erzeugen.
+        if enabled && scope != .status && !isEnabled(.status, defaults: defaults) {
+            defaults.set(false, forKey: scope.key)
+            return
+        }
         defaults.set(enabled, forKey: scope.key)
         if scope == .status && !enabled {
             // Erneute Freigabe des Lesens darf alte Schreibrechte nicht reaktivieren.

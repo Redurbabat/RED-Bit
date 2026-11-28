@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Explizite lokale Freigaben für die zwölf neuen JSON-Kurzbefehle.
+/// Explizite lokale Freigaben für zwölf Operationen und die JSON-Brücke.
 /// Bestehende Siri-Kurzbefehle und RED-ID-Anmeldung bleiben unabhängig.
 struct RedBitAutomationPermissionsView: View {
     @AppStorage(RedBitLocalAutomationConsent.Scope.status.key) private var status = false

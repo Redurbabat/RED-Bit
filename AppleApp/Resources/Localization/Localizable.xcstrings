@@ -14482,6 +14482,66 @@
         }
       }
     },
+    "Invoke RED Bit Tool" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RED Bit Werkzeug aufrufen"
+          }
+        }
+      }
+    },
+    "Call a documented local RED Bit tool with JSON arguments." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dokumentiertes lokales RED-Bit-Werkzeug mit JSON-Argumenten aufrufen."
+          }
+        }
+      }
+    },
+    "Tool name" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Werkzeugname"
+          }
+        }
+      }
+    },
+    "JSON arguments" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JSON-Argumente"
+          }
+        }
+      }
+    },
+    "Unknown RED Bit automation tool." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unbekanntes RED-Bit-Werkzeug."
+          }
+        }
+      }
+    },
+    "Invalid RED Bit automation arguments." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ungültige RED-Bit-Argumente."
+          }
+        }
+      }
+    },
     "Playback position" : {
       "localizations" : {
         "de" : {

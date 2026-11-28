@@ -169,6 +169,9 @@ import Foundation
         }
         Consent.set(.transport, enabled: true, defaults: defaults)
         precondition(!Consent.allows(.transport, defaults: defaults))
+        precondition(!Consent.isEnabled(.transport, defaults: defaults))
+        Consent.set(.status, enabled: true, defaults: defaults)
+        precondition(!Consent.allows(.transport, defaults: defaults))
         Consent.revokeAll(defaults: defaults)
         Consent.set(.status, enabled: true, defaults: defaults)
         precondition(Consent.allows(.status, defaults: defaults))
@@ -189,6 +192,47 @@ import Foundation
         precondition(!Consent.allows(.preferences, defaults: defaults))
         Consent.revokeAll(defaults: defaults)
         precondition(!Consent.allows(.status, defaults: defaults))
-        print("PASS stream recovery, output watchdog, private automation, preferences and local consent")
+        typealias Contract = RedBitToolContract
+        let actualCatalog = try! Contract.catalogJSON()
+        let fileCatalog = try! Data(contentsOf: URL(fileURLWithPath: "docs/red-bit-tool-contract.json"))
+        let fixture = try! JSONSerialization.jsonObject(with: fileCatalog)
+        precondition(actualCatalog == (try! JSONSerialization.data(withJSONObject: fixture, options: [.sortedKeys])))
+        precondition(Contract.Tool.allCases.count == 12)
+        let valid: [(Contract.Tool, String)] = [
+            (.status, "{}"), (.queue, "{}"), (.play, "{}"), (.pause, "{}"), (.next, "{}"), (.previous, "{}"),
+            (.volume, "{\"percent\":50}"), (.seek, "{\"seconds\":0.5}"),
+            (.automix, "{\"enabled\":true}"), (.equalizer, "{\"enabled\":false}"),
+            (.quality, "{\"quality\":\"LOW\",\"metered\":true}"), (.shuffle, "{\"enabled\":true}")
+        ]
+        for (tool, json) in valid {
+            precondition((try? Contract.parse(tool: tool, arguments: json)) != nil)
+            Consent.revokeAll(defaults: defaults)
+            precondition(!Consent.allows(tool.scope, defaults: defaults))
+            Consent.set(.status, enabled: true, defaults: defaults)
+            precondition(Consent.allows(tool.scope, defaults: defaults) == (tool.scope == .status))
+            Consent.set(tool.scope, enabled: true, defaults: defaults)
+            precondition(Consent.allows(tool.scope, defaults: defaults))
+        }
+        let invalid: [(Contract.Tool, String)] = [
+            (.status, "[]"), (.queue, "{\"unexpected\":true}"), (.play, "null"),
+            (.volume, "{}"), (.volume, "{\"percent\":true}"), (.volume, "{\"percent\":\"50\"}"),
+            (.volume, "{\"percent\":101}"), (.volume, "{\"percent\":-1}"), (.volume, "{\"percent\":1e999}"),
+            (.seek, "{\"seconds\":-1}"), (.seek, "{\"seconds\":false}"),
+            (.automix, "{\"enabled\":1}"), (.equalizer, "{\"enabled\":\"true\"}"),
+            (.quality, "{\"quality\":\"FLAC\",\"metered\":false}"),
+            (.quality, "{\"quality\":\"LOW\"}"), (.shuffle, "{\"enabled\":true,\"extra\":0}"),
+            (.status, String(repeating: " ", count: 4097) + "{}")
+        ]
+        for (tool, json) in invalid {
+            precondition((try? Contract.parse(tool: tool, arguments: json)) == nil)
+        }
+        precondition(Contract.Tool(rawValue: "redbit_execute") == nil)
+        if case .adjustment(.volumePercent(let percent)) = try! Contract.parse(tool: .volume, arguments: "{\"percent\":25}") {
+            precondition(percent == 25)
+        } else { fatalError("volume routing") }
+        if case .preference(.streamQuality(let value, let metered)) = try! Contract.parse(tool: .quality, arguments: "{\"quality\":\"HIGH\",\"metered\":true}") {
+            precondition(value == "HIGH" && metered)
+        } else { fatalError("quality routing") }
+        print("PASS stream recovery, private automation, local consent and versioned tool contract")
     }
 }

@@ -75,6 +75,23 @@ Die Einstellungen respektieren Party-Sperren; keine Playlist- oder Queue-Löschu
 Eine offene Einstellungsansicht übernimmt die neuen EQ-/Qualitätswerte. Keine
 neuen RED-ID-Scopes oder Netzwerkendpunkte.
 
+## Einheitlicher lokaler Werkzeugaufruf
+
+Der zusätzliche authentifizierte Kurzbefehl **RED Bit Werkzeug aufrufen**
+verwendet die zwölf vorhandenen Operationen über den versionierten Vertrag
+[`red-bit-tool-contract.json`](red-bit-tool-contract.json). Er ist keine
+dreizehnte Operation. Eingabe: Werkzeugname und JSON-Objekt als Text,
+z. B. `redbit_set_volume` mit `{"percent":25}` oder
+`redbit_read_status` mit `{}`. Die Freigaben werden vor der
+Argumentauswertung und im bestehenden Aktionspfad geprüft. Unbekannte
+Werkzeuge, zusätzliche oder fehlende Felder, falsche Typen und unzulässige
+Werte werden abgelehnt. Maximal 4096 UTF-8-Bytes pro Argumentobjekt.
+Das Schema beschreibt die Eingabe; Seek-Dauer und Party-/Mix-Zustand bleiben
+Laufzeitprüfungen. Die JSON-Brücke ist kein öffentliches URL-Schema,
+kein MCP-Endpunkt und kein Server-Grant. `remoteAvailable:false` im
+statischen Vertrag ist verbindlich. Die CI vergleicht das Katalogartefakt
+mit den Swift-Definitionen und prüft gültige/ungültige Aufrufe.
+
 ## Noch nicht verfügbar
 
 Dies ist **kein MCP-Server**. Der App Intent ist eine lokale, vom System

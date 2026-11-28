@@ -102,3 +102,8 @@ Der Branch `feat/red-bit-audio-continuity-20261128` basiert auf PR #59 (bd15a0f)
 - Redion PR #258 (263406ef) meldet externalAppActions:false; identity:read ist keine Musikberechtigung. Kein Servercode verändert, keine automatische Verbindung.
 - Opt-in unter Konto & Integrationen → RED Automation: Status, Transport und Einstellungen getrennt, standardmässig aus. Status-Widerruf entfernt auch beide Schreibfreigaben. Jede der zwölf neuen lokalen Aktionen prüft ihre Freigabe vor Controller-Zugriff; bestehende Siri-Aktionen bleiben unverändert.
 - Isolierte UserDefaults-Gegenproben für Standard-Aus, Abhängigkeit, Widerruf und erneute Freigabe; Geräte-/Apple-CI ausstehend. Bereits beauftragte asynchrone Aktionen werden nicht rückgängig gemacht. Server-seitiger Scope und Remote-Transport fehlen weiterhin.
+
+### RED MCP – einheitlicher lokaler Werkzeugvertrag
+- Zwölf typisierte Operationen als versionierter JSON-Katalog, gemeinsamer authentifizierter App Intent, Wiederverwendung der bestehenden Scope-/Party-Prüfungen; kein Remote-Transport.
+- Strikte Argumenttypen, exakte Feldmenge, Wertebereiche, 4096-Byte-Limit. Katalog-Gleichheit und positive/negative Aufrufe in der Swift-Suite; keine latente Schreibfreigabe ohne Status.
+- Auf Diagnose-Commit a3c0b5d aufgebaut (nicht überschrieben). Vorherige macOS-Kompilierung, Regression, SDK-Pilot und Simulator-XCUITest-Schritt grün, gesamte Simulator-Suite noch offen. Neue CI ausstehend.

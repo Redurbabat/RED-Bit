@@ -328,6 +328,25 @@ enum AppIntentActions {
         ).json()
     }
 
+    /// Einheitlicher lokaler Aufrufweg. Die Freigabe wird vor der
+    /// Argumentauswertung und nochmals im jeweiligen Controller-Pfad geprüft.
+    static func invokeTool(name: String, arguments: String) throws -> String {
+        guard let tool = RedBitToolContract.Tool(rawValue: name) else {
+            throw RedBitIntentError.refused(String(localized: "Unknown RED Bit automation tool."))
+        }
+        try requireConsent(tool.scope)
+        let invocation: RedBitToolContract.Invocation
+        do { invocation = try RedBitToolContract.parse(tool: tool, arguments: arguments) }
+        catch { throw RedBitIntentError.refused(String(localized: "Invalid RED Bit automation arguments.")) }
+        switch invocation {
+        case .status: return try playbackStatus()
+        case .queue: return try queueSummary()
+        case .transport(let command): return try transport(command)
+        case .adjustment(let adjustment): return try adjust(adjustment)
+        case .preference(let preference): return try setPreference(preference)
+        }
+    }
+
     /// Play or pause, and say which happened.
     static func togglePlayback() async throws -> String {
         let controller = AppServices.shared.controller
@@ -593,6 +612,24 @@ struct SetRedBitShuffleIntent: AppIntent {
 
     func perform() async throws -> some IntentResult & ReturnsValue<String> {
         .result(value: try await AppIntentActions.setPreference(.shuffle(enabled)))
+    }
+}
+
+/// Lokale JSON-Brücke für alle zwölf Operationen, kein Remote-Endpunkt.
+struct InvokeRedBitToolIntent: AppIntent {
+    static var title: LocalizedStringResource = "Invoke RED Bit Tool"
+    static var description = IntentDescription("Call a documented local RED Bit tool with JSON arguments.")
+    static var openAppWhenRun = false
+    static var authenticationPolicy: IntentAuthenticationPolicy = .requiresAuthentication
+
+    @Parameter(title: "Tool name")
+    var tool: String
+
+    @Parameter(title: "JSON arguments")
+    var arguments: String
+
+    func perform() async throws -> some IntentResult & ReturnsValue<String> {
+        .result(value: try await AppIntentActions.invokeTool(name: tool, arguments: arguments))
     }
 }
 
