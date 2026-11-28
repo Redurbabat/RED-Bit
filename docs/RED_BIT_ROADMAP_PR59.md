@@ -107,3 +107,7 @@ Der Branch `feat/red-bit-audio-continuity-20261128` basiert auf PR #59 (bd15a0f)
 - Zwölf typisierte Operationen als versionierter JSON-Katalog, gemeinsamer authentifizierter App Intent, Wiederverwendung der bestehenden Scope-/Party-Prüfungen; kein Remote-Transport.
 - Strikte Argumenttypen, exakte Feldmenge, Wertebereiche, 4096-Byte-Limit. Katalog-Gleichheit und positive/negative Aufrufe in der Swift-Suite; keine latente Schreibfreigabe ohne Status.
 - Auf Diagnose-Commit a3c0b5d aufgebaut (nicht überschrieben). Vorherige macOS-Kompilierung, Regression, SDK-Pilot und Simulator-XCUITest-Schritt grün, gesamte Simulator-Suite noch offen. Neue CI ausstehend.
+
+### CI-Blocker: Beatmatching-Aufnahme
+- Lauf 46155196072: Swift-Werkzeugvertrag, iPhone-UI, macOS und Kotlin grün; Rust 336/1/1 (bestanden/fehlgeschlagen/ignoriert). Nur 26,2 s PCM nach 120 s; Ursache nicht bewiesen.
+- Blockweise Stereo-Aufnahme, Fortschritts-/Ende-Watchdog, absolute 270-s-Grenze und detaillierter Fehlerbericht; komplette 28-s-Aufnahme und bisherige Beatdrift-/BPM-Grenzen unverändert. Zwei neue Harness-Gegenproben. Keine Produktionsänderung; erneute CI steht aus.

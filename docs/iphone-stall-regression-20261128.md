@@ -22,3 +22,9 @@ Decoderfehler bleiben bis zum Abschluss der Stimme erhalten, auch bei Bit-Perfec
 ### CI-Gegenprobe
 
 Der Lauf 46151406428 scheiterte in der Monitor-Gegenprobe beim exakten Double-Vergleich `stalledSeconds == 39`. Der Test verwendet jetzt eine feste monotone Testuhr, eine numerische Toleranz von einer Millisekunde sowie eine anschliessende Fortschrittsmessung, die den erhaltenen Fehlerstatus überprüft. Der Produktions-Watchdog bleibt unverändert; der erneute CI- und IPA-Lauf prüft den aktualisierten Stand.
+
+### Beatmatching-CI-Blocker (Lauf 46155196072)
+
+Die Swift-Recovery-/Tool-Contract-Gegenprobe, iPhone-XCUITest, macOS-Kompilierung und Kotlin-Tests waren erfolgreich. Native Rust: 336 bestanden, 1 fehlgeschlagen, 1 ignoriert. `a_beatmatched_blend_holds_the_grid_then_glides_home` erreichte nach 120 s nur 26,2 s der PCM-Aufnahme; die Onset-/BPM-Prüfungen wurden dadurch nicht erreicht. Ob reine Runner-Last oder ein Audioproblem vorlag, ist noch nicht nachgewiesen.
+
+Der Aufnahme-Harness verarbeitet nun vollständige Stereo-Blöcke mit einer atomaren Korrektur pro Block, verwendet 270 s als absolute Obergrenze und bricht bei 45 s ohne PCM-/Playhead-Fortschritt oder vorzeitig gestoppter Wiedergabe ab. Fehler enthalten Zustände, Handoffs, Ende, Puffer und Position. Die vollständigen 28 s PCM, <15 ms Beatdrift und <2 % Abweichung der Rückkehr zu 116 BPM bleiben erforderlich. Zwei neue Block-/Stereo-Gegenproben. Keine Änderung am Produktionsmixer oder den Audio-Grenzwerten. Erneute Apple-CI erforderlich.
