@@ -54,6 +54,18 @@ Keine automatische Remote-Ausführung. Die bestehenden acht lokalen Aktionen
 (Status, vier Transportaktionen, drei Audio-Einstellungen) sind erst nach Installation
 der entsprechenden App-Version verfügbar.
 
+## Weitere Audio- und Queue-Aktionen
+
+Vier zusätzliche authentifizierungspflichtige Kurzbefehle:
+- Warteschlangenübersicht: Gesamtzahl, noch folgende manuelle/automatische Titel, Shuffle, Party-Sperre; keine Titelliste.
+- Equalizer: gespeicherte Einstellung an/aus. Transparent-/Bit-Perfect-/Dolby-Bypass bleibt unverändert; die Quittung bestätigt keine hörbare EQ-Wirkung.
+- Streamingqualität: LOW, MEDIUM, HIGH oder LOSSLESS für WLAN bzw. mobile Daten. Nur Vorgabe, keine Garantie des Codecs und kein Neustart des aktuellen Titels.
+- Shuffle: gezielt an/aus; kein Umschalten während einer aktiven Überblendung.
+
+Die Einstellungen respektieren Party-Sperren; keine Playlist- oder Queue-Löschung.
+Eine offene Einstellungsansicht übernimmt die neuen EQ-/Qualitätswerte. Keine
+neuen RED-ID-Scopes oder Netzwerkendpunkte.
+
 ## Noch nicht verfügbar
 
 Dies ist **kein MCP-Server**. Der App Intent ist eine lokale, vom System

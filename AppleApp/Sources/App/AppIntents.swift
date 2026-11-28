@@ -1,5 +1,6 @@
 import AppIntents
 import Foundation
+import RedBitShared
 
 // MARK: - The app's objects, for code that has no scene
 
@@ -262,6 +263,55 @@ enum AppIntentActions {
         ).json()
     }
 
+    static func queueSummary() throws -> String {
+        let controller = AppServices.shared.controller
+        let start = controller.current == nil ? 0 : min(controller.queue.count, max(0, controller.playingIndex + 1))
+        let upcoming = controller.queue.dropFirst(start)
+        return try RedBitQueueSummary(
+            total: controller.queue.count, upcoming: upcoming.count,
+            automaticUpcoming: upcoming.filter(\.fromAutoplay).count,
+            shuffleEnabled: controller.shuffleEnabled,
+            controlsLocked: PartyStore.shared.state.controlsLocked
+        ).json()
+    }
+
+    static func setPreference(_ preference: RedBitAutomationPreference) throws -> String {
+        let controller = AppServices.shared.controller
+        let settings = PlatformSettings.shared
+        let eqKey = "equalizer_enabled"
+        let wifiKey = "audio_quality_wifi"
+        let cellKey = "audio_quality_cellular"
+        let decision = preference.decision(
+            locked: PartyStore.shared.state.controlsLocked, mixing: controller.smartMixInProgress,
+            equalizer: settings.getBoolean(key: eqKey, default: false),
+            wifiQuality: settings.getString(key: wifiKey, default: "LOSSLESS"),
+            cellularQuality: settings.getString(key: cellKey, default: "LOSSLESS"),
+            shuffle: controller.shuffleEnabled
+        )
+        if decision == .requested {
+            switch preference {
+            case .equalizer(let enabled):
+                settings.putBoolean(key: eqKey, value: enabled)
+                controller.applyEqualizer()
+            case .streamQuality(let value, let metered):
+                // Nur die gewählte Vorgabe ändern; keinen laufenden Titel neu laden.
+                if metered { AppSettings.shared.setAudioQualityCellular(value: value) }
+                else { AppSettings.shared.setAudioQualityWifi(value: value) }
+                controller.refreshUpcomingURLPrefetch()
+            case .shuffle(let enabled):
+                if controller.shuffleEnabled != enabled { controller.toggleShuffle() }
+            }
+            NotificationCenter.default.post(name: .redBitAutomationPreferencesChanged, object: nil)
+        }
+        return try RedBitAutomationPreference.Receipt(
+            preference: preference, decision: decision,
+            equalizer: settings.getBoolean(key: eqKey, default: false),
+            wifiQuality: settings.getString(key: wifiKey, default: "LOSSLESS"),
+            cellularQuality: settings.getString(key: cellKey, default: "LOSSLESS"),
+            shuffle: controller.shuffleEnabled
+        ).json()
+    }
+
     /// Play or pause, and say which happened.
     static func togglePlayback() async throws -> String {
         let controller = AppServices.shared.controller
@@ -471,6 +521,62 @@ struct SetRedBitAutomixIntent: AppIntent {
 
     func perform() async throws -> some IntentResult & ReturnsValue<String> {
         .result(value: try await AppIntentActions.adjust(.automix(enabled)))
+    }
+}
+
+struct ReadRedBitQueueIntent: AppIntent {
+    static var title: LocalizedStringResource = "Read RED Bit Queue Summary"
+    static var description = IntentDescription("Read queue counts without song details.")
+    static var openAppWhenRun = false
+    static var authenticationPolicy: IntentAuthenticationPolicy = .requiresAuthentication
+
+    func perform() async throws -> some IntentResult & ReturnsValue<String> {
+        .result(value: try await AppIntentActions.queueSummary())
+    }
+}
+
+struct SetRedBitEqualizerIntent: AppIntent {
+    static var title: LocalizedStringResource = "Set RED Bit Equalizer"
+    static var description = IntentDescription("Enable or disable the saved equalizer setting.")
+    static var openAppWhenRun = false
+    static var authenticationPolicy: IntentAuthenticationPolicy = .requiresAuthentication
+
+    @Parameter(title: "Equalizer enabled")
+    var enabled: Bool
+
+    func perform() async throws -> some IntentResult & ReturnsValue<String> {
+        .result(value: try await AppIntentActions.setPreference(.equalizer(enabled)))
+    }
+}
+
+struct SetRedBitStreamQualityIntent: AppIntent {
+    static var title: LocalizedStringResource = "Set RED Bit Streaming Quality"
+    static var description = IntentDescription("Set LOW, MEDIUM, HIGH or LOSSLESS for the selected network.")
+    static var openAppWhenRun = false
+    static var authenticationPolicy: IntentAuthenticationPolicy = .requiresAuthentication
+
+    @Parameter(title: "Streaming quality")
+    var quality: String
+
+    @Parameter(title: "Mobile data")
+    var metered: Bool
+
+    func perform() async throws -> some IntentResult & ReturnsValue<String> {
+        .result(value: try await AppIntentActions.setPreference(.streamQuality(quality, metered: metered)))
+    }
+}
+
+struct SetRedBitShuffleIntent: AppIntent {
+    static var title: LocalizedStringResource = "Set RED Bit Shuffle"
+    static var description = IntentDescription("Enable or disable shuffle without toggling it twice.")
+    static var openAppWhenRun = false
+    static var authenticationPolicy: IntentAuthenticationPolicy = .requiresAuthentication
+
+    @Parameter(title: "Shuffle enabled")
+    var enabled: Bool
+
+    func perform() async throws -> some IntentResult & ReturnsValue<String> {
+        .result(value: try await AppIntentActions.setPreference(.shuffle(enabled)))
     }
 }
 

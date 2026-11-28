@@ -173,6 +173,12 @@ struct SettingsView: View {
             if !PerformanceTuner.supportedRates.contains(refreshRate) { refreshRate = 60 }
             PerformanceTuner.shared.apply(highPerformance: highPerf, refreshRateHz: refreshRate)
             localFolderName = SettingsView.storedLocalFolderName()
+            wifiQuality = PlatformSettings.shared.getString(key: "audio_quality_wifi", default: "LOSSLESS")
+            cellQuality = PlatformSettings.shared.getString(key: "audio_quality_cellular", default: "LOSSLESS")
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .redBitAutomationPreferencesChanged)) { _ in
+            wifiQuality = PlatformSettings.shared.getString(key: "audio_quality_wifi", default: "LOSSLESS")
+            cellQuality = PlatformSettings.shared.getString(key: "audio_quality_cellular", default: "LOSSLESS")
         }
         // App Language defaults to German; SwiftUI must receive that locale
         // even when the device itself is configured for English.

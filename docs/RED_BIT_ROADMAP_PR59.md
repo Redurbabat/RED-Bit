@@ -92,3 +92,8 @@ Der Branch `feat/red-bit-audio-continuity-20261128` basiert auf PR #59 (bd15a0f)
 - Drei typisierte, authentifizierungspflichtige Kurzbefehle für Lautstärke (App-Regler), Seek und Automix an/aus. Grenzen und nicht endliche Werte prüfen, Party-Sperren respektieren, Seek/Automix-Wechsel bei aktiver Überblendung ablehnen.
 - Eigene private Quittung ohne ungültige Parameter oder Musikdaten. Keine Änderung der Systemlautstärke, keine neue RED-ID-Berechtigung und kein Remote-Listener.
 - Policy-Gegenproben für Grenzen, Sperren, Pufferzustand, fehlende Dauer, laufende Überblendung, wiederholte Einstellungen und Quittungen ergänzt. Geräteprüfung ausstehend.
+
+### RED MCP – Audio-/Queue-Einstellungen
+- Lokale authentifizierte Queue-Übersicht ohne Titel/IDs, Equalizer- und Shuffle-Schalter sowie getrennte WLAN-/Mobilfunk-Qualitätsvorgaben. Allowlist, Party-Schutz und unveränderte Einstellungen ohne erneuten Auftrag.
+- EQ-Bypass und laufender Titel bleiben erhalten; Settings und Equalizer übernehmen die geänderten Vorgaben. Die Statusquittung beschreibt Einstellungen, keine garantierte Audioausgabe.
+- Policy-Gegenproben und JSON-Feldprüfung erweitert. Noch kein Remote-MCP; keine destruktive Queue-/Playlist-Operation. Geräteabnahme ausstehend.

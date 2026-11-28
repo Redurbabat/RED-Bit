@@ -153,3 +153,103 @@ enum RedBitAdjustment {
         }
     }
 }
+
+/// Nur explizite Audio-/Queue-Einstellungen, keine freien Kommandos.
+enum RedBitAutomationPreference {
+    case equalizer(Bool)
+    case streamQuality(String, metered: Bool)
+    case shuffle(Bool)
+
+    enum Decision: String, Encodable {
+        case requested, unchanged, locked, unavailable, invalidValue
+    }
+
+    enum Quality: String, CaseIterable {
+        case low = "LOW", medium = "MEDIUM", high = "HIGH", lossless = "LOSSLESS"
+    }
+
+    var command: String {
+        switch self {
+        case .equalizer: return "setEqualizer"
+        case .streamQuality: return "setStreamQuality"
+        case .shuffle: return "setShuffle"
+        }
+    }
+
+    func decision(locked: Bool, mixing: Bool, equalizer: Bool,
+                  wifiQuality: String, cellularQuality: String, shuffle: Bool) -> Decision {
+        guard !locked else { return .locked }
+        switch self {
+        case .equalizer(let enabled):
+            return equalizer == enabled ? .unchanged : .requested
+        case .streamQuality(let value, let metered):
+            guard Quality(rawValue: value) != nil else { return .invalidValue }
+            return value == (metered ? cellularQuality : wifiQuality) ? .unchanged : .requested
+        case .shuffle(let enabled):
+            if shuffle == enabled { return .unchanged }
+            return mixing ? .unavailable : .requested
+        }
+    }
+
+    struct Receipt: Encodable {
+        let version = 1
+        let command: String
+        let decision: Decision
+        let equalizerEnabled: Bool?
+        let shuffleEnabled: Bool?
+        let requestedQuality: String?
+        let metered: Bool?
+
+        init(preference: RedBitAutomationPreference, decision: Decision,
+             equalizer: Bool, wifiQuality: String, cellularQuality: String, shuffle: Bool) {
+            self.command = preference.command
+            self.decision = decision
+            switch preference {
+            case .equalizer:
+                equalizerEnabled = equalizer; shuffleEnabled = nil; requestedQuality = nil; metered = nil
+            case .streamQuality(_, let mobile):
+                equalizerEnabled = nil; shuffleEnabled = nil
+                requestedQuality = Quality(rawValue: mobile ? cellularQuality : wifiQuality)?.rawValue
+                metered = mobile
+            case .shuffle:
+                equalizerEnabled = nil; shuffleEnabled = shuffle; requestedQuality = nil; metered = nil
+            }
+        }
+
+        func json() throws -> String {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.sortedKeys]
+            return String(decoding: try encoder.encode(self), as: UTF8.self)
+        }
+    }
+}
+
+/// Aggregate statt Titelliste; verrät keine Titel, IDs oder Dateipfade.
+struct RedBitQueueSummary: Encodable {
+    let version = 1
+    let total: Int
+    let upcoming: Int
+    let automaticUpcoming: Int
+    let manualUpcoming: Int
+    let shuffleEnabled: Bool
+    let controlsLocked: Bool
+
+    init(total: Int, upcoming: Int, automaticUpcoming: Int, shuffleEnabled: Bool, controlsLocked: Bool) {
+        self.total = max(0, total)
+        self.upcoming = min(max(0, upcoming), self.total)
+        self.automaticUpcoming = min(max(0, automaticUpcoming), self.upcoming)
+        self.manualUpcoming = self.upcoming - self.automaticUpcoming
+        self.shuffleEnabled = shuffleEnabled
+        self.controlsLocked = controlsLocked
+    }
+
+    func json() throws -> String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return String(decoding: try encoder.encode(self), as: UTF8.self)
+    }
+}
+
+extension Notification.Name {
+    static let redBitAutomationPreferencesChanged = Notification.Name("redbit.automation.preferences.changed")
+}

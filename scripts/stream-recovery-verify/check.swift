@@ -129,6 +129,37 @@ import Foundation
         let validReceipt = RedBitAdjustment.Receipt(adjustment: .volumePercent(50),
             decision: .unchanged, status: snapshot(.playing), volume: 0.5, automixEnabled: false)
         precondition(validReceipt.volumePercent == 50 && validReceipt.automixEnabled == nil)
-        print("PASS stream recovery, output watchdog, private status, transport and adjustment policy")
+        func preference(_ value: RedBitAutomationPreference, locked: Bool = false, mixing: Bool = false) -> RedBitAutomationPreference.Decision {
+            value.decision(locked: locked, mixing: mixing, equalizer: false,
+                wifiQuality: "HIGH", cellularQuality: "LOW", shuffle: false)
+        }
+        precondition(preference(.equalizer(true)) == .requested)
+        precondition(preference(.equalizer(false)) == .unchanged)
+        precondition(preference(.equalizer(true), locked: true) == .locked)
+        precondition(preference(.streamQuality("HIGH", metered: false)) == .unchanged)
+        precondition(preference(.streamQuality("HIGH", metered: true)) == .requested)
+        precondition(preference(.streamQuality("LOW", metered: true)) == .unchanged)
+        precondition(preference(.streamQuality("FLAC", metered: false)) == .invalidValue)
+        precondition(preference(.streamQuality("LOW", metered: false), locked: true) == .locked)
+        precondition(preference(.shuffle(true)) == .requested)
+        precondition(preference(.shuffle(false)) == .unchanged)
+        precondition(preference(.shuffle(true), mixing: true) == .unavailable)
+        precondition(preference(.shuffle(true), locked: true) == .locked)
+        for quality in RedBitAutomationPreference.Quality.allCases {
+            precondition(preference(.streamQuality(quality.rawValue, metered: false)) != .invalidValue)
+        }
+        let queueSummary = RedBitQueueSummary(total: 8, upcoming: 5, automaticUpcoming: 3,
+            shuffleEnabled: false, controlsLocked: true)
+        precondition(queueSummary.manualUpcoming == 2)
+        let queueJSON = try! JSONSerialization.jsonObject(with: Data(try! queueSummary.json().utf8)) as! [String: Any]
+        precondition(Set(queueJSON.keys) == Set(["version", "total", "upcoming", "automaticUpcoming",
+            "manualUpcoming", "shuffleEnabled", "controlsLocked"]))
+        let invalidQueue = RedBitQueueSummary(total: -1, upcoming: 20, automaticUpcoming: 50,
+            shuffleEnabled: true, controlsLocked: false)
+        precondition(invalidQueue.total == 0 && invalidQueue.upcoming == 0 && invalidQueue.manualUpcoming == 0)
+        let qualityReceipt = RedBitAutomationPreference.Receipt(preference: .streamQuality("bad", metered: true),
+            decision: .invalidValue, equalizer: false, wifiQuality: "HIGH", cellularQuality: "LOW", shuffle: false)
+        precondition(qualityReceipt.requestedQuality == "LOW" && qualityReceipt.metered == true)
+        print("PASS stream recovery, output watchdog, private automation and audio/queue preferences")
     }
 }
