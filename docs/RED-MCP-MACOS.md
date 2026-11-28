@@ -130,3 +130,7 @@ keine echte macOS-/iPhone-Geräteabnahme. Die tatsächliche App-Antwort, Apple-
 Authentifizierung und der konkrete Host müssen noch gemeinsam erprobt werden.
 Die macOS-Brücke ist kein iOS- oder Windows-Dienst und kein ChatGPT-Cloud-Connector.
 Die RED-Server-Anbindung und serverseitige Gerätefreigaben bleiben offen.
+
+Die App kann zusätzlich die separate serverseitige Lesefreigabe manuell unter
+RED Home Server prüfen (siehe [RED-ID-HOME.md](RED-ID-HOME.md)). Dies ändert
+keine lokalen MCP-Freigaben und öffnet keinen Remote-Kanal.

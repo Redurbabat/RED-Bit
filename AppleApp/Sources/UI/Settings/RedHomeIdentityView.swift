@@ -17,6 +17,8 @@ struct RedHomeIdentityView: View {
     @State private var status = "Noch nicht geprüft."
     @State private var confirmDisconnect = false
     @State private var confirmForget = false
+    @State private var permission: RedBitServerPermission?
+    @State private var permissionStatus: LocalizedStringKey = "Noch nicht geprüft."
 
     var body: some View {
         Form {
@@ -73,11 +75,45 @@ struct RedHomeIdentityView: View {
                 if busy { ProgressView() }
                 Text(status).font(.footnote).foregroundStyle(.secondary)
             }
+            Section("Server-Lesefreigabe") {
+                Button("Lesefreigabe prüfen") {
+                    run { client in
+                        do {
+                            permission = try await client.redBitPermission()
+                            permissionStatus = "Lesefreigabe beim letzten Abruf bestätigt."
+                        } catch RedNativeError.http(403) {
+                            permissionStatus = "Keine gültige Server-Lesefreigabe."
+                        } catch RedNativeError.http(404) {
+                            permissionStatus = "Server-Pilot nicht verfügbar."
+                        } catch RedNativeError.http(401) {
+                            identity = nil
+                            permissionStatus = "RED ID nicht autorisiert. Anmeldung prüfen."
+                        } catch RedNativeError.notSignedIn {
+                            identity = nil
+                            permissionStatus = "Nicht angemeldet."
+                        } catch {
+                            permissionStatus = "Lesefreigabe konnte nicht sicher geprüft werden."
+                        }
+                    }
+                }
+                .disabled(busy || savedOrigin.isEmpty || proof != nil)
+                Text(permissionStatus).font(.footnote).foregroundStyle(.secondary)
+                if let permission {
+                    LabeledContent("Spätester Ablauf") {
+                        Text(permission.expiryDate, format: .dateTime.day().month().hour().minute())
+                    }
+                    Text("Nur Momentaufnahme. Die Freigabe kann früher widerrufen werden.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+                LabeledContent("Remote MCP", value: "Nicht verbunden")
+                Text("Nur die separate Freigabe wird abgefragt. Keine Musiktitel oder Wiedergabedaten werden übertragen. Die lokale Automatisierungsfreigabe bleibt unabhängig.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
         .navigationTitle("RED Home Server")
         .onAppear { if origin.isEmpty { origin = savedOrigin } }
-        .onDisappear { clearProof() }
+        .onDisappear { clearProof(); permission = nil; permissionStatus = "Noch nicht geprüft." }
         .confirmationDialog("RED ID trennen?", isPresented: $confirmDisconnect, titleVisibility: .visible) {
             Button("Trennen", role: .destructive) {
                 run { client in
@@ -105,6 +141,7 @@ struct RedHomeIdentityView: View {
                     let scope = try RedNativeClient.credentialScope(origin: savedOrigin, app: "red-bit")
                     try RedKeychainStore().clear(scope: scope)
                     identity = nil; clearProof(); savedOrigin = ""; origin = ""; client = nil
+                    permission = nil; permissionStatus = "Noch nicht geprüft."
                     status = "Lokaler Zugang gelöscht. Serverzugang separat in RED ION widerrufen."
                 } catch { status = "Lokale Zugangsdaten konnten nicht gelöscht werden." }
             }
@@ -142,6 +179,8 @@ struct RedHomeIdentityView: View {
     }
     private func run(_ action: @escaping @MainActor (RedNativeClient) async throws -> Void) {
         guard !busy else { return }
+        permission = nil
+        permissionStatus = "Noch nicht geprüft."
         busy = true
         Task { @MainActor in
             defer { busy = false }

@@ -14542,6 +14542,136 @@
         }
       }
     },
+    "Server-Lesefreigabe" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Server-Lesefreigabe"
+          }
+        }
+      }
+    },
+    "Lesefreigabe prüfen" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lesefreigabe prüfen"
+          }
+        }
+      }
+    },
+    "Lesefreigabe beim letzten Abruf bestätigt." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lesefreigabe beim letzten Abruf bestätigt."
+          }
+        }
+      }
+    },
+    "Keine gültige Server-Lesefreigabe." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine gültige Server-Lesefreigabe."
+          }
+        }
+      }
+    },
+    "Server-Pilot nicht verfügbar." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Server-Pilot nicht verfügbar."
+          }
+        }
+      }
+    },
+    "RED ID nicht autorisiert. Anmeldung prüfen." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RED ID nicht autorisiert. Anmeldung prüfen."
+          }
+        }
+      }
+    },
+    "Lesefreigabe konnte nicht sicher geprüft werden." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lesefreigabe konnte nicht sicher geprüft werden."
+          }
+        }
+      }
+    },
+    "Spätester Ablauf" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spätester Ablauf"
+          }
+        }
+      }
+    },
+    "Nur Momentaufnahme. Die Freigabe kann früher widerrufen werden." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nur Momentaufnahme. Die Freigabe kann früher widerrufen werden."
+          }
+        }
+      }
+    },
+    "Nicht verbunden" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht verbunden"
+          }
+        }
+      }
+    },
+    "Nur die separate Freigabe wird abgefragt. Keine Musiktitel oder Wiedergabedaten werden übertragen. Die lokale Automatisierungsfreigabe bleibt unabhängig." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nur die separate Freigabe wird abgefragt. Keine Musiktitel oder Wiedergabedaten werden übertragen. Die lokale Automatisierungsfreigabe bleibt unabhängig."
+          }
+        }
+      }
+    },
+    "Noch nicht geprüft." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noch nicht geprüft."
+          }
+        }
+      }
+    },
+    "Nicht angemeldet." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht angemeldet."
+          }
+        }
+      }
+    },
     "Playback position" : {
       "localizations" : {
         "de" : {

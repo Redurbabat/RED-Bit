@@ -29,6 +29,33 @@ public struct RedNativeIdentity: Codable, Equatable {
     public let scopes: [String]
     public let expiresAt: String
 }
+/// Momentaufnahme einer separaten Server-Lesefreigabe. Keine Ausführungsrechte.
+public struct RedBitServerPermission: Decodable, Equatable {
+    public let version: Int
+    public let app: String
+    public let scope: String
+    public let expiresAt: Int64
+    public let remoteAvailable: Bool
+
+    public var expiryDate: Date {
+        Date(timeIntervalSince1970: Double(expiresAt) / 1000)
+    }
+
+    static func validated(_ data: Data, now: Date, sessionExpiry: Date) throws -> Self {
+        guard data.count <= 2048,
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              Set(object.keys) == Set(["version", "app", "scope", "expiresAt", "remoteAvailable"]),
+              let value = try? JSONDecoder().decode(Self.self, from: data),
+              value.version == 1, value.app == "red-bit", value.scope == "music:status:read",
+              !value.remoteAvailable, value.expiresAt > 0,
+              value.expiryDate > now,
+              value.expiryDate <= now.addingTimeInterval(3660),
+              value.expiryDate <= sessionExpiry
+        else { throw RedNativeError.invalidResponse }
+        return value
+    }
+}
+
 public protocol RedNativeCredentialStore {
     func load(scope: String) throws -> Data?
     func save(_ value: Data, scope: String) throws
@@ -164,7 +191,11 @@ public actor RedNativeClient {
         return value
     }
     private func request(_ path: String, method: String = "POST", body: [String:String]? = nil, token: String? = nil) async throws -> Data {
-        guard let url = URL(string: origin + "/red-id/v2/" + path) else { throw RedNativeError.invalidOrigin }
+        try await send("/red-id/v2/" + path, method: method, body: body, token: token)
+    }
+
+    private func send(_ path: String, method: String, body: [String:String]? = nil, token: String? = nil) async throws -> Data {
+        guard let url = URL(string: origin + path) else { throw RedNativeError.invalidOrigin }
         var req = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
         req.httpMethod = method
         req.setValue("no-store", forHTTPHeaderField: "Cache-Control")
@@ -221,6 +252,17 @@ public actor RedNativeClient {
         else { throw RedNativeError.invalidResponse }
         return identity
     }
+    /// Nur auf ausdrücklichen Nutzerwunsch. Keine Status-/Musikdaten werden
+    /// hochgeladen und keine Freigabe wird erteilt. Kein Retry bei 401/403/404.
+    public func redBitPermission() async throws -> RedBitServerPermission {
+        guard app == "red-bit" else { throw RedNativeError.invalidApp }
+        try enter(); defer { busy = false }
+        let value = try await current()
+        let data = try await send("/red-bit/v1/permission", method: "GET", token: value.accessToken)
+        guard let expiry = Self.date(value.refreshExpiresAt) else { throw RedNativeError.invalidResponse }
+        return try RedBitServerPermission.validated(data, now: Date(), sessionExpiry: expiry)
+    }
+
     /// If the server cannot be reached, throws after clearing local credentials.
     /// Remote revocation must then be performed in RED ION settings.
     public func logout() async throws {
