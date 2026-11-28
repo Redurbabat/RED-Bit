@@ -1,0 +1,29 @@
+name: RED ID Apple pilot
+on:
+  pull_request:
+    paths:
+      - 'AppleApp/Packages/RedNativeIdentity/**'
+      - 'AppleApp/Sources/UI/Settings/RedHomeIdentityView.swift'
+      - 'AppleApp/Sources/UI/Settings/AccountIntegrationsView.swift'
+      - 'AppleApp/project.yml'
+      - '.github/workflows/red-id-apple-pilot.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  focused:
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Test pinned native SDK
+        run: swift test --package-path AppleApp/Packages/RedNativeIdentity
+      - name: Typecheck standalone RED ID SwiftUI settings page
+        run: |
+          set -euo pipefail
+          bin="$(swift build --package-path AppleApp/Packages/RedNativeIdentity --show-bin-path)"
+          swiftc -typecheck -swift-version 5 -I "$bin/Modules" AppleApp/Sources/UI/Settings/RedHomeIdentityView.swift
+      - name: Parse integration entry
+        run: swiftc -frontend -parse AppleApp/Sources/UI/Settings/AccountIntegrationsView.swift

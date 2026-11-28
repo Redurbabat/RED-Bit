@@ -4,7 +4,7 @@ import AppKit
 #else
 import UIKit
 #endif
-import BitChordShared
+import RedBitShared
 import UniformTypeIdentifiers
 
 /// Upstream's unified Library landing page (`LibraryScreen.kt`):
@@ -76,7 +76,8 @@ struct LibraryLandingView: View {
                 .font(.title3.weight(.bold))
 
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 14) {
+                // Faul, weil hier jedes heruntergeladene Album mit Cover steht.
+                LazyHStack(spacing: 14) {
                     // Upstream's On-Device shelf leads with the playlists and
                     // albums downloaded whole, as artwork cards, before the
                     // folder destinations — they are the things a listener is
@@ -123,6 +124,15 @@ struct LibraryLandingView: View {
                         systemImage: "clock.fill",
                         tintColor: .orange,
                         destination: HistoryView()
+                    )
+
+                    // Gespeicherte Podcasts des Kontos; jede Sendung öffnet ihre Folgen.
+                    OnDeviceCard(
+                        title: "Podcasts",
+                        subtitle: "Saved shows",
+                        systemImage: "mic.fill",
+                        tintColor: .purple,
+                        destination: LibraryView(lockedSection: .podcasts)
                     )
                 }
                 .padding(.vertical, 2)

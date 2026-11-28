@@ -1,5 +1,5 @@
 import Foundation
-import BitChordShared
+import RedBitShared
 import os
 #if os(iOS)
 import UIKit
@@ -70,7 +70,7 @@ extension PlaybackController {
                 // A stale voice from a superseded arm (e.g. a blend abandoned
                 // by a manual skip). Acting on it would move or stop the wrong
                 // track.
-                NSLog("[BitChord] ignoring handoff for untracked voice %@ — %@", info.title, info.artist)
+                NSLog("[RED Bit] ignoring handoff for untracked voice %@ — %@", info.title, info.artist)
                 return
             }
         }
@@ -93,7 +93,7 @@ extension PlaybackController {
         if let current { streamRecovery.select(current.id, resetAttempts: true) }
         historyVideoID = current.flatMap(youtubeVideoID)
         duration = info.durationSeconds
-        position = 0
+        position = max(0, engine.positionSeconds())
         if let entry = current {
             if !sameSong {
                 refreshArtwork(entry)
@@ -134,16 +134,20 @@ extension PlaybackController {
     }
 
     func handleTrackEnded(_ reason: TrackEndReason, source: String) {
-        guard state != .paused else { return }
+        // Während eines neuen Loads oder einer Netzwerk-Wartephase können
+        // noch EOS/Fehler der alten Stimme eintreffen. Sie besitzen den
+        // Transport nicht mehr und dürfen den neuen Load nicht abbrechen.
+        guard state != .paused, state != .buffering else { return }
         if reason == .error {
             // A decoder failure is not a natural end. If bounded recovery is
             // exhausted, surface the failure instead of silently abandoning
             // playback with the UI still claiming the track is playing.
             if !recoverInterruptedStream(
                 source: source,
-                explanation: "The audio decoder stopped; requesting a fresh stream at the same position."
+                explanation: "The audio decoder stopped; requesting a fresh stream at the same position.",
+                confirmedFailure: true
             ) {
-                stopAfterFailedRecovery(source: source)
+                stopAfterFailedRecovery(source: source, confirmedFailure: true)
             }
             return
         }
@@ -212,8 +216,14 @@ extension PlaybackController {
         guard let source else { return false }
         let failures = engine.drainSourceErrors()
         let failed = FileManager.default.fileExists(atPath: source + ".failed") || failures.contains { $0.source == source }
-        guard failed else { return false }
-        return recoverInterruptedStream(source: source, explanation: "Playback was interrupted; requesting a fresh stream at the same position.")
+        guard failed, let entry = current, source == loadedSourcePath,
+              PlaybackRecoveryPolicy.canRecover(entrySource: entry.source, loadedSource: source, origin: resolvedOrigin[entry.id]?.rawValue) else { return false }
+        if !recoverInterruptedStream(source: source, explanation: "Playback was interrupted; requesting a fresh stream at the same position.", confirmedFailure: true) {
+            stopAfterFailedRecovery(source: source, confirmedFailure: true)
+        }
+        // Ein beschädigter Download ist auch bei erschöpftem Budget kein
+        // natürliches Liedende und darf nicht als vollständig gehört zählen.
+        return true
     }
 
     /// Reopen the current queue item after a natural end. Seeking a finished
@@ -271,7 +281,7 @@ extension PlaybackController {
     }
 
     func handleError(_ message: String) {
-        lastError = message
+        reportPlaybackFailure(.engine, message: message)
         if let id = current?.id, QualityUpgrade.forcedStream(id) != nil {
             QualityUpgrade.refuseUpgrades(id)
             debugLog.record("broke on its upgrade; no more swaps", about: id)

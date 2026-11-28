@@ -133,18 +133,19 @@ struct ConfirmationRequest: Identifiable {
 /// hanging their sheets here is what lets them appear at all.
 struct ToastHost: View {
     @Environment(ToastCenter.self) private var center
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack {
             Spacer(minLength: 0)
             if let notice = center.current {
                 ToastBanner(notice: notice)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
                     .padding(.bottom, 8)
                     .padding(.horizontal, 16)
             }
         }
-        .animation(.spring(response: 0.36, dampingFraction: 0.86), value: center.current)
+        .animation(Motion.once(reduceMotion, curve: .spring(response: 0.36, dampingFraction: 0.86)), value: center.current)
         // A toast is decorative confirmation; the action it announces has already
         // happened, and re-announcing it would double up with whatever caused it.
         .allowsHitTesting(center.current != nil)

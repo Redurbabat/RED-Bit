@@ -4,7 +4,7 @@ import AppKit
 #else
 import UIKit
 #endif
-import BitChordShared
+import RedBitShared
 import UniformTypeIdentifiers
 
 /// Explore tab — upstream shows mood and genre categories here.
@@ -17,6 +17,9 @@ struct ExploreView: View {
         PageStack {
             content
                 .navigationTitle("Explore")
+                #if os(iOS)
+                .toolbarBackground(.visible, for: .navigationBar)
+                #endif
                 .toolbar {
                     #if os(iOS)
                     TopBarLeadingItems()

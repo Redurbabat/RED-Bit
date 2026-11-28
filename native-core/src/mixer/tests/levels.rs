@@ -5,7 +5,7 @@ use super::*;
 #[test]
 fn transparent_honors_normalization_before_peak_protection() {
     let path = std::env::temp_dir().join(format!(
-        "bitchord-transparent-headroom-{}.wav",
+        "redbit-transparent-headroom-{}.wav",
         std::process::id()
     ));
     let rate = 44_100u32;
@@ -163,7 +163,7 @@ fn normalization_that_already_matched_the_decks_is_not_applied_twice() {
 fn the_queue_path_matches_a_measured_deck_to_a_relative_one() {
     // Short files: the blend is scheduled at the end of the first one, and
     // the mixer runs in real time.
-    let dir = std::env::temp_dir().join(format!("bitchord-mixer-queue-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("redbit-mixer-queue-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let loud = dir.join("a.wav");
     let quiet = dir.join("b.wav");
@@ -234,21 +234,9 @@ fn the_queue_path_matches_a_measured_deck_to_a_relative_one() {
     // its end, well before the fade itself. Waiting for the handoff as well
     // would make the test about the crossfade's schedule.
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
-    // The device callback's side of the ring: every popped sample has to
-    // leave the shared counter, or the mixer believes the ring is full and
-    // never looks at its command channel again.
+    // Wie der Geräte-Callback nur vollständige Stereo-Frames zählen.
     fn drain(consumer: &mut rtrb::Consumer<f32>, buffered: &AtomicU64) {
-        while consumer.pop().is_ok() {
-            let current = buffered.load(Ordering::Relaxed);
-            if current > 0 {
-                let _ = buffered.compare_exchange(
-                    current,
-                    current - 1,
-                    Ordering::Relaxed,
-                    Ordering::Relaxed,
-                );
-            }
-        }
+        drain_available_frames(consumer, buffered);
     }
 
     let mut armed = None;

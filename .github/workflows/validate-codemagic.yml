@@ -12,7 +12,6 @@ on:
       - AppleApp/project.yml
       - AppleApp/UITests/**
       - AppleApp/Sources/UI/LiquidMotion/LiquidMotionDeviceSelfTestView.swift
-      - AppleApp/Sources/UI/LiquidMotion/LiquidLiveScreenshotRecorder.swift
       - AppleApp/Sources/UI/LiquidMotion/**
       - AppleApp/Sources/UI/Settings/SettingsView+About.swift
       - .github/workflows/validate-codemagic.yml
@@ -26,7 +25,6 @@ on:
       - AppleApp/project.yml
       - AppleApp/UITests/**
       - AppleApp/Sources/UI/LiquidMotion/LiquidMotionDeviceSelfTestView.swift
-      - AppleApp/Sources/UI/LiquidMotion/LiquidLiveScreenshotRecorder.swift
       - AppleApp/Sources/UI/LiquidMotion/**
       - AppleApp/Sources/UI/Settings/SettingsView+About.swift
       - .github/workflows/validate-codemagic.yml
@@ -78,56 +76,22 @@ jobs:
           assert 'CFBundleDisplayName: RED Bit' in p
           assert re.search(r'MARKETING_VERSION: "[0-9]+\.[0-9]+\.[0-9]+"', p)
           package = Path('scripts/package-ios-ipa.sh').read_text()
-          assert 'BBT-Bit-$version-' in package
+          assert 'RedBit-$version-' in package
           assert 'COMPILATION_CACHE_ENABLE_CACHING=YES' in package
           assert '--fast)' in package
           # Verify real-device test target and launch-only harness are wired.
           app = yaml.safe_load(Path('AppleApp/project.yml').read_text())
-          assert app['targets']['BitChordUITests']['type'] == 'bundle.ui-testing'
-          assert app['targets']['BitChordUITests']['platform'] == 'iOS'
-          assert 'BitChordUITests' in app['targets']['BitChord']['scheme']['testTargets']
+          assert app['targets']['RedBitUITests']['type'] == 'bundle.ui-testing'
+          assert app['targets']['RedBitUITests']['platform'] == 'iOS'
+          assert 'RedBitUITests' in app['targets']['RedBit']['scheme']['testTargets']
           assert Path('AppleApp/UITests/LiquidMotionUITests.swift').exists()
           assert Path('AppleApp/Sources/UI/LiquidMotion/LiquidMotionDeviceSelfTestView.swift').exists()
-          assert '--bbt-ui-test-designs' in Path('AppleApp/Sources/App/BitChordApp.swift').read_text()
+          assert '--bbt-ui-test-designs' in Path('AppleApp/Sources/App/RedBitApp.swift').read_text()
           assert 'Alle 15 Designs prüfen' in Path('AppleApp/Sources/UI/LiquidMotion/LiquidMotionDeviceSelfTestView.swift').read_text()
           assert '.navigationTitle("Vorschau-Selbsttest")' in Path('AppleApp/Sources/UI/LiquidMotion/LiquidMotionDeviceSelfTestView.swift').read_text()
-          # Real screenshots must capture the existing application window,
-          # never generate 15 sample-data mockups and call them screenshots.
-          live = Path('AppleApp/Sources/UI/LiquidMotion/LiquidLiveScreenshotRecorder.swift').read_text()
-          assert 'window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)' in live
-          assert 'UIGraphicsImageRenderer' in live
-          assert 'recording = true' in live
-          assert 'applicationSupportDirectory' in live
-          assert 'LiquidWindowShareSheet' in live
-          archive = Path('AppleApp/Sources/UI/LiquidMotion/BBTScreenshotZIP.swift').read_text()
-          assert '0x04034B50' in archive and '0x02014B50' in archive
-          assert 'BBTScreenshotZIP.create(' in live
-          assert 'BBT-Bit-Echte-Screenshots.zip' in live
-          assert 'liquidDesignSample' in Path('AppleApp/Sources/UI/LiquidMotion/LiquidMotionDesignPhotosView.swift').read_text()
-          expected = ['AutomixWeave', 'LyricsMirror', 'SignalPrism', 'EQMembrane',
-                      'ReplayTimeRiver', 'QueueHorizon', 'DownloadBloom', 'OutputHaloGlyph',
-                      'PartyConstellation', 'CanvasVeil', 'HandoffComet', 'EchoTrail',
-                      'MusicIsland', 'InfinityDock', 'GlassQueuePortal']
-          for feature in expected:
-              source = Path('AppleApp/Sources/UI/LiquidMotion', feature + '.swift').read_text()
-              assert 'LiquidLiveCaptureMarker(id:' in source, feature
-          settings = Path('AppleApp/Sources/UI/Settings/SettingsView+About.swift').read_text()
-          assert 'LiquidLiveScreenshotSettingsView()' in settings
-          assert 'Beispielbilder – keine echten App-Screenshots' in settings
-          guide = Path('AppleApp/Sources/UI/LiquidMotion/LiquidPhotoWayfinderView.swift').read_text()
-          for id in ('island', 'dock', 'portal', 'lyrics', 'queue', 'signal', 'eq',
-                     'output', 'echo', 'automix', 'canvas', 'replay', 'downloads',
-                     'party', 'handoff'):
-              assert 'feature: .' + id in guide, id
-          assert guide.count('.init(feature: .') == 15
-          assert 'Foto-Wegweiser' in guide
-          assert 'arrow.down' in guide
-          assert 'HIER SOLL DAS FOTO ENTSTEHEN' in guide
-          assert 'Zum nächsten fehlenden Foto' in guide
-          assert 'recorder.captures.contains' in guide
-          assert 'LiquidPhotoWayfinderView()' in settings
-          assert 'LiquidPhotoWayfinderView()' in live
-          assert 'AppServices.shared.appModel.settingsPresented' in live
+          # Der gemeinsame Vorschau-Schlüssel kennzeichnet Beispieldaten in echten Bausteinen.
+          assert 'liquidDesignSample' in Path('AppleApp/Sources/UI/LiquidMotion/LiquidDesignSample.swift').read_text()
+          assert '.environment(\\.liquidDesignSample, true)' in Path('AppleApp/Sources/UI/LiquidMotion/LiquidPhotoCard.swift').read_text()
           # Glass Bloom must not regress to an always-visible centered island.
           bloom = Path('AppleApp/Sources/UI/LiquidMotion/LogoGlassBloom.swift').read_text()
           root = Path('AppleApp/Sources/UI/RootView.swift').read_text()
@@ -137,8 +101,9 @@ jobs:
           assert '.glassEffect(.regular, in: shape)' in bloom
           assert 'case .idle' in bloom and 'case .spark' in bloom
           assert '.seconds(8)' in bloom and '.seconds(4)' in bloom
-          assert 'LiquidLiveCaptureMarker(id: "island")' in bloom
-          assert 'LogoGlassBloomIsland()' in root
+          assert 'LogoGlassBloomIsland(maximumWidth:' in root
+          assert 'logoGlassBloom.presentationLogoFrame' in root
+          assert 'bloom.updateLogoFrame(frame)' in mark
           assert '.overlay(alignment: .topLeading)' in root
           assert 'logoGlassBloom.isVisible' in root
           assert '.onChange(of: canRevealLogoBloom)' in root
@@ -147,7 +112,6 @@ jobs:
           # Glass Bloom Motion: both files must type-check later on macOS,
           # and all gestures, deep links and accessibility guards stay wired.
           motion = Path('AppleApp/Sources/UI/LiquidMotion/GlassBloomMotionDetails.swift').read_text()
-          assert 'struct GlassBloomAtmosphere' in motion
           assert 'struct GlassBloomSignalBars' in motion
           assert 'struct GlassBloomStatusRow' in motion
           assert 'struct GlassBloomSwipeHint' in motion
@@ -180,19 +144,22 @@ jobs:
           miniPill = Path('AppleApp/Sources/UI/PlaybackPill.swift').read_text()
           fullLayout = Path('AppleApp/Sources/UI/NowPlaying/NowPlayingView+Layouts.swift').read_text()
           zoomRoot = Path('AppleApp/Sources/UI/RootView.swift').read_text()
-          assert 'struct CoverMorphMiniSurface' in miniCover
           assert 'struct CoverMorphFullBackdrop' in miniCover
           assert 'ArtworkPalette.pageTint' in miniCover
           assert 'ArtworkCache.shared.load' in miniCover
-          assert 'accessibilityReduceTransparency' in miniCover
-          assert 'accessibilityReduceMotion' in miniCover
+          # Der Vollplayer-Hintergrund setzt die Rücksicht in MeshBackdrop um.
+          mesh = Path('AppleApp/Sources/UI/NowPlaying/MeshBackdrop.swift').read_text()
+          assert 'MeshBackdrop(' in miniCover
+          assert 'accessibilityReduceMotion' in mesh
+          assert 'reduce_dynamic_blur' in mesh
           # User chose neutral native Apple Liquid Glass rather than the
           # historical cover-linked mini-player color wash.
           assert 'CoverMorphMiniSurface(' not in miniPill
           assert 'isArtworkMiniTintActive' not in miniPill
           assert 'content.glassEffect(.regular, in: Capsule())' in miniPill
           assert 'NowPlayingZoomSource()' in miniPill
-          assert 'controller.duration > 0' in miniPill
+          assert 'duration.isFinite && duration > 0 && position.isFinite' in miniPill
+          assert 'min(1, max(0, position / duration))' in miniPill
           assert 'NowPlayingZoomSource()' in miniPill
           assert 'CoverMorphFullBackdrop(entry: controller.current)' in fullLayout
           assert '.navigationTransition(.zoom(sourceID:' in zoomRoot
@@ -205,12 +172,13 @@ jobs:
           assert 'onScrollPhaseChange' in dock
           assert 'onScrollGeometryChange' in dock
           assert 'if phase == .interacting' in dock
-          assert 'keepExpanded = newDirection == .towardTop' in dock
+          assert 'directionRevision &+= 1' in dock
+          assert 'keepExpanded = newDirection == .towardTop' not in dock
           assert 'final class DockDirectionTracker' in tracker
           assert 'lastEmittedDirection' in tracker
           assert 'DockScrollDirectionObserver()' in home and 'DockScrollDirectionObserver()' in explore
           assert 'DockScrollDirectionObserver()' in libraryLanding
-          assert 'dockScroll.keepExpanded ? .never : .onScrollDown' in root
+          assert 'content.tabBarMinimizeBehavior(.onScrollDown)' in root
           assert 'dockScroll.directionRevision' in root
           assert 'DragGesture(minimumDistance: 14)' in mark
           assert Path('scripts/test-dock-direction-tracker.swift').exists()
@@ -226,8 +194,8 @@ jobs:
           set -euo pipefail
           if command -v swiftc >/dev/null 2>&1; then
             swiftc -frontend -parse AppleApp/Sources/UI/LiquidMotion/LiquidMotionDeviceSelfTestView.swift
-            swiftc -frontend -parse AppleApp/Sources/UI/LiquidMotion/LiquidPhotoWayfinderView.swift
-            swiftc -frontend -parse AppleApp/Sources/UI/LiquidMotion/LiquidLiveScreenshotRecorder.swift
+            swiftc -frontend -parse AppleApp/Sources/UI/LiquidMotion/LiquidDesignSample.swift
+            swiftc -frontend -parse AppleApp/Sources/UI/LiquidMotion/LiquidPhotoCard.swift
             swiftc -frontend -parse AppleApp/Sources/UI/LiquidMotion/LogoGlassBloom.swift
             swiftc -frontend -parse AppleApp/Sources/UI/LiquidMotion/GlassBloomMotionDetails.swift
             swiftc -frontend -parse AppleApp/Sources/UI/LiquidMotion/DockScrollDirection.swift

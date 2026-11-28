@@ -4,7 +4,7 @@ import AppKit
 #else
 import UIKit
 #endif
-import BitChordShared
+import RedBitShared
 import UniformTypeIdentifiers
 
 /// Home tab — upstream's "Play" tab: signed out it leads with the sign-in
@@ -20,22 +20,55 @@ struct HomeView: View {
     /// is a singleton while the reader's place in it was not (upstream hoists
     /// `homeListState` outside its tab switch for the same reason).
     var scrollPosition: Binding<ScrollPosition>? = nil
+    @Environment(\.scenePhase) private var scenePhase
     @AppStorage("hide_recents") private var hideRecents = false
     @AppStorage("hide_home_videos") private var hideHomeVideos = false
+    @AppStorage("redbit.home.media_filter") private var mediaFilterRaw = HomeMediaFilter.all.rawValue
+    @AppStorage("redbit.home.mix_mood") private var mixMoodRaw = HomeMixMood.balanced.rawValue
+    @State private var discovery = HomeDiscoveryModel()
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Regale, die schon hereingeglitten sind. Ein Regal, das beim Scrollen neu
+    /// aufgebaut wird, erscheint dann sofort statt erneut zu gleiten.
+    @State private var arrivedShelves: Set<String> = []
+
+    private var mediaFilter: HomeMediaFilter { HomeMediaFilter(rawValue: mediaFilterRaw) ?? .all }
+    private var mixMood: Binding<HomeMixMood> {
+        Binding(get: { HomeMixMood(rawValue: mixMoodRaw) ?? .balanced }, set: { mixMoodRaw = $0.rawValue })
+    }
 
     var body: some View {
         PageStack {
             content
                 .navigationTitle("Listen Now")
+                #if os(iOS)
+                .toolbarBackground(.visible, for: .navigationBar)
+                #endif
                 .toolbar {
                     #if os(iOS)
-                    // Upstream FrostedTopBar's root-page leading BitChord logo.
+                    // Upstream FrostedTopBar's root-page leading RedBit logo.
                     TopBarLeadingItems()
                     ToolbarItem(placement: .topBarTrailing) { TopBarAccountButton() }
                     #endif
                 }
                 .refreshable { await loadFeed(force: true) }
-                .task(id: auth.sessionEpoch) { await loadFeed(force: false) }
+                // Zurück in die App: Ist der Feed älter als FeedLoader.freshness,
+                // kommen frische Empfehlungen und Neuheiten statt der alten.
+                .onChange(of: scenePhase) { _, phase in
+                    guard phase == .active else { return }
+                    Task { await loadFeed(force: false) }
+                }
+                .task(id: auth.sessionEpoch) {
+                    discovery.clear(); discovery.seedHistory()
+                    await loadFeed(force: false)
+                    if case .failed = feed.phase {
+                        await discovery.refresh(shelves: [], session: PageSession.generation())
+                    }
+                }
+                .onReceive(NotificationCenter.default.publisher(for: PlaylistPinning.didChange)) { _ in
+                    if case .loaded(let shelves) = feed.phase {
+                        Task { await discovery.refresh(shelves: shelves, session: feed.sessionGeneration) }
+                    }
+                }
                 .onChange(of: NetworkQuality.shared.pathChanges) { oldValue, newValue in
                     guard newValue != oldValue, NetworkQuality.shared.connected else { return }
                     if case .failed = feed.phase {
@@ -76,60 +109,100 @@ struct HomeView: View {
     private var content: some View {
         switch feed.phase {
         case .loading:
-            ScrollView { HomeFeedSkeleton() }
-                #if os(iOS)
-                .modifier(DockScrollDirectionObserver())
-                #endif
+            homeScroll(shelves: [], loading: true)
         case .failed(let message):
-            EmptyStateView(
-                icon: Image(.bchMusicNote),
-                title: "Your feed couldn't load",
-                subtitle: message,
-                buttonTitle: "Retry"
-            ) { Task { await feed.load() } }
+            homeScroll(shelves: [], failure: message)
         case .loaded(let shelves):
-            let withoutRecents = hideRecents ? shelves.filter { !isRecentsShelf($0) } : shelves
-            // Der Originalfeed bleibt erhalten; nur die sichtbaren Videos und
-            // dadurch leere Regale verschwinden bei eingeschalteter Option.
-            let visibleShelves = hideHomeVideos ? withoutRecents.compactMap { shelf -> FeedShelf? in
-                let items = shelf.items.filter { !$0.isVideo }
-                return items.isEmpty ? nil : FeedShelf(
-                    title: shelf.title, items: items, subtitle: shelf.subtitle
-                )
-            } : withoutRecents
-            ScrollView {
-                VStack(alignment: .leading, spacing: 28) {
-                    if !auth.signedIn {
-                        SignInBanner { auth.loginPresented = true }
-                    }
-                    ForEach(Array(visibleShelves.enumerated()), id: \.element.id) { index, shelf in
-                        if index == 0, isRecentsShelf(shelf) {
-                            RecentShelf(shelf: shelf)
-                                .onAppear {
-                                    if shelf.id == visibleShelves.last?.id { Task { await feed.loadMore() } }
-                                }
-                        } else if index == 0 {
-                            HeroShelf(shelf: shelf, preferTrack: true)
-                                .onAppear {
-                                    if shelf.id == visibleShelves.last?.id { Task { await feed.loadMore() } }
-                                }
-                        } else {
-                            ShelfCarousel(shelf: shelf, preferTrack: true)
-                                .onAppear {
-                                    if shelf.id == visibleShelves.last?.id {
-                                        Task { await feed.loadMore() }
-                                    }
-                                }
+            homeScroll(shelves: shelves)
+                .task(id: shelves.hashValue) {
+                    await discovery.refresh(shelves: shelves, session: feed.sessionGeneration)
+                }
+        }
+    }
+
+    private func filtered(_ shelves: [FeedShelf]) -> [FeedShelf] {
+        shelves.compactMap { shelf in
+            if hideRecents && isRecentsShelf(shelf) { return nil }
+            let cards = shelf.items.filter { (!hideHomeVideos || !$0.isVideo) && mediaFilter.includes(video: $0.isVideo) }
+            return cards.isEmpty ? nil : FeedShelf(title: shelf.title, items: cards, subtitle: shelf.subtitle)
+        }
+    }
+
+    private func homeScroll(shelves: [FeedShelf], loading: Bool = false, failure: String? = nil) -> some View {
+        let visible = filtered(shelves)
+        return ScrollView {
+            LazyVStack(alignment: .leading, spacing: 26) {
+                Picker("Inhalt", selection: $mediaFilterRaw) {
+                    ForEach(HomeMediaFilter.allCases) { Text(LocalizedStringKey($0.title)).tag($0.rawValue) }
+                }
+                .pickerStyle(.segmented)
+                .accessibilityIdentifier("red.home.filter")
+                if !auth.signedIn { SignInBanner { auth.loginPresented = true } }
+                if mediaFilter != .videos {
+                    TimelineView(.periodic(from: .now, by: 60)) { timeline in
+                        let mood = HomeMixMood(rawValue: mixMoodRaw) ?? .balanced
+                        let title = HomeDayPart.at(timeline.date).title
+                        let entries = HomeMixBuilder.build(history: discovery.history, feed: discovery.feedTracks,
+                            mood: mood, date: timeline.date)
+                        VStack(alignment: .leading, spacing: 26) {
+                            HomeDiscoveryDashboard(model: discovery, mix: entries, mixTitle: title)
+                            HomeDayMixSection(entries: entries, title: title, mood: mixMood)
                         }
                     }
                 }
-                .padding(.horizontal, 24)
-                .padding(.vertical, 20)
+                if loading {
+                    ProgressView("Dein Feed wird geladen …").frame(maxWidth: .infinity, minHeight: 80)
+                } else if let failure {
+                    EmptyStateView(icon: Image(.bchMusicNote), title: "Your feed couldn't load", subtitle: failure,
+                        buttonTitle: "Retry") { Task { await loadFeed(force: true) } }
+                } else if visible.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(mediaFilter == .videos && hideHomeVideos ? "Videos sind in deinen Einstellungen ausgeblendet."
+                            : "Für diesen Filter sind noch keine Inhalte geladen.")
+                            .font(.subheadline).foregroundStyle(.secondary)
+                        if feed.canLoadMore, !(mediaFilter == .videos && hideHomeVideos) {
+                            Button("Weitere Inhalte laden") { Task { await feed.loadMore() } }
+                                .frame(minHeight: 44).disabled(feed.loadingMore)
+                        }
+                    }
+                }
+                ForEach(Array(visible.enumerated()), id: \.element.id) { index, shelf in
+                    Group {
+                        if index == 0, isRecentsShelf(shelf) { RecentShelf(shelf: shelf) }
+                        else {
+                            ShelfCarousel(shelf: shelf, preferTrack: true,
+                                records: shelf.items.contains { $0.browseId?.hasPrefix("MPRE") == true })
+                        }
+                    }
+                    .onAppear {
+                        if shelf.id == visible.last?.id { Task { await feed.loadMore() } }
+                    }
+                    .modifier(ShelfArrival(index: index,
+                                           alreadyShown: arrivedShelves.contains(shelf.id),
+                                           reduceMotion: reduceMotion) {
+                        arrivedShelves.insert(shelf.id)
+                    })
+                }
+                if feed.loadingMore { ProgressView().frame(maxWidth: .infinity, minHeight: 44) }
+                if !visible.isEmpty, feed.canLoadMore {
+                    Button("Weitere Inhalte laden") { Task { await feed.loadMore() } }
+                        .frame(maxWidth: .infinity, minHeight: 44).disabled(feed.loadingMore)
+                }
             }
-            .modifier(ExternalScrollPosition(position: scrollPosition))
-            #if os(iOS)
-            .modifier(DockScrollDirectionObserver())
-            #endif
+            .padding(.horizontal, 24).padding(.vertical, 20)
+        }
+        .modifier(ExternalScrollPosition(position: scrollPosition))
+        #if os(iOS)
+        .modifier(DockScrollDirectionObserver())
+        #endif
+        .task(id: "\(mediaFilterRaw)-\(hideHomeVideos)-\(hideRecents)-\(feed.canLoadMore)") {
+            // Bei einem leeren Filter begrenzt vorblättern; weitere Seiten
+            // bleiben bewusst über den sichtbaren Ladebutton erreichbar.
+            for _ in 0..<3 {
+                guard !Task.isCancelled, !(mediaFilter == .videos && hideHomeVideos), case .loaded(let current) = feed.phase,
+                      filtered(current).isEmpty, feed.canLoadMore, !feed.loadingMore else { return }
+                await feed.loadMore()
+            }
         }
     }
 
@@ -143,6 +216,34 @@ struct HomeView: View {
     }
 }
 
+/// Regale gleiten beim ersten Erscheinen gestaffelt von unten herein: jedes
+/// 60 ms nach dem vorigen, ab dem sechsten ohne weitere Verzögerung, damit
+/// Nachladen beim Scrollen nicht wartet. Unter Reduce Motion sofort sichtbar.
+private struct ShelfArrival: ViewModifier {
+    let index: Int
+    let alreadyShown: Bool
+    let reduceMotion: Bool
+    let markShown: () -> Void
+    @State private var shown = false
+
+    func body(content: Content) -> some View {
+        let visible: Bool = alreadyShown || shown || reduceMotion
+        content
+            .opacity(visible ? 1 : 0)
+            .offset(y: visible ? 0 : 22)
+            .onAppear {
+                guard !alreadyShown, !reduceMotion, !shown else { return }
+                let delay: Double = Double(min(index, 5)) * 0.06
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.86).delay(delay)) {
+                    shown = true
+                }
+                // Erst nach der Bewegung merken: sonst wäre das Regal sofort sichtbar
+                // und die Animation fiele aus.
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay + 0.6) { markShown() }
+            }
+    }
+}
+
 private enum RecentShelfLayout {
     static let columnSpacing: CGFloat = 12
 
@@ -152,135 +253,6 @@ private enum RecentShelfLayout {
 
     static func placeholderCount(availableWidth: CGFloat, itemWidth: CGFloat, spacing: CGFloat) -> Int {
         max(1, Int(ceil((availableWidth + spacing) / (itemWidth + spacing))))
-    }
-}
-
-/// The upstream Home loading state reserves the Recents shelf and matches the
-/// saved list/grid layout so content does not jump when the feed arrives.
-private struct HomeFeedSkeleton: View {
-    @AppStorage("hide_recents") private var hideRecents = false
-    @State private var viewType = PlatformSettings.shared.getString(
-        key: "home_recents_view_type", default: "LIST"
-    )
-
-    private var isList: Bool { viewType.uppercased() != "GRID" }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 26) {
-            if !hideRecents {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    RecentsSkeletonBlock(height: 22, cornerRadius: 6).frame(width: 112)
-                    Spacer(minLength: 8)
-                    RecentsSkeletonBlock(height: 32, cornerRadius: 16).frame(width: 32)
-                }
-                if isList {
-                    GeometryReader { geometry in
-                        let columnWidth = RecentShelfLayout.columnWidth(viewportWidth: geometry.size.width + 48)
-                        let count = RecentShelfLayout.placeholderCount(
-                            availableWidth: geometry.size.width, itemWidth: columnWidth,
-                            spacing: RecentShelfLayout.columnSpacing
-                        )
-                        HStack(alignment: .top, spacing: RecentShelfLayout.columnSpacing) {
-                            ForEach(0..<count, id: \.self) { _ in
-                                VStack(spacing: 0) {
-                                    ForEach(0..<4, id: \.self) { index in
-                                        HStack(spacing: 12) {
-                                            RecentsSkeletonBlock(height: 48, cornerRadius: 7).frame(width: 48)
-                                            VStack(alignment: .leading, spacing: 7) {
-                                                RecentsSkeletonBlock(height: 14, cornerRadius: 4)
-                                                    .frame(width: [150.0, 112.0, 134.0, 96.0][index])
-                                                RecentsSkeletonBlock(height: 12, cornerRadius: 4)
-                                                    .frame(width: [92.0, 122.0, 78.0, 106.0][index])
-                                            }
-                                            Spacer(minLength: 4)
-                                            RecentsSkeletonBlock(height: 20, cornerRadius: 10).frame(width: 20)
-                                        }
-                                        .frame(height: 56)
-                                    }
-                                }
-                                .frame(width: columnWidth, alignment: .leading)
-                            }
-                        }
-                        .frame(width: geometry.size.width, alignment: .leading)
-                        .clipped()
-                    }
-                    .frame(height: 4 * 56)
-                } else {
-                    GeometryReader { geometry in
-                        let count = RecentShelfLayout.placeholderCount(
-                            availableWidth: geometry.size.width, itemWidth: 160, spacing: 14
-                        )
-                        HStack(alignment: .top, spacing: 14) {
-                            ForEach(0..<count, id: \.self) { _ in
-                                VStack(alignment: .leading, spacing: 8) {
-                                    RecentsSkeletonBlock(height: 160, cornerRadius: 10).frame(width: 160)
-                                    RecentsSkeletonBlock(height: 14, cornerRadius: 4).frame(width: 118)
-                                    RecentsSkeletonBlock(height: 12, cornerRadius: 4).frame(width: 82)
-                                }
-                            }
-                        }
-                        .frame(width: geometry.size.width, alignment: .leading)
-                        .clipped()
-                    }
-                    .frame(height: 202)
-                }
-            }
-            }
-            ForEach(0..<2, id: \.self) { shelf in
-                VStack(alignment: .leading, spacing: 10) {
-                    SkeletonBlock(height: 22, cornerRadius: 6).frame(width: shelf == 0 ? 140 : 110)
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 14) {
-                            ForEach(0..<4, id: \.self) { _ in
-                                VStack(alignment: .leading, spacing: 8) {
-                                    SkeletonBlock(height: 156, cornerRadius: 12).frame(width: 156)
-                                    SkeletonBlock(height: 14, cornerRadius: 4).frame(width: 118)
-                                    SkeletonBlock(height: 12, cornerRadius: 4).frame(width: 82)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        .padding(.horizontal, 24)
-        .padding(.vertical, 20)
-    }
-}
-
-/// The Recents placeholder uses the same moving highlight sweep as upstream's
-/// shimmer blocks, while respecting the listener's Reduce Motion setting.
-private struct RecentsSkeletonBlock: View {
-    let height: CGFloat
-    var cornerRadius: CGFloat = 6
-    @State private var sweep = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    var body: some View {
-        GeometryReader { geometry in
-            ZStack(alignment: .leading) {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(.quaternary)
-                if !reduceMotion {
-                    LinearGradient(
-                        colors: [.clear, .white.opacity(0.22), .clear],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                    .frame(width: geometry.size.width * 0.55)
-                    .offset(x: sweep ? geometry.size.width : -geometry.size.width * 0.55)
-                }
-            }
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-        }
-        .frame(height: height)
-        .onAppear { sweep = true }
-        .animation(
-            reduceMotion ? nil : .linear(duration: 1.4).repeatForever(autoreverses: false),
-            value: sweep
-        )
-        .accessibilityHidden(true)
     }
 }
 

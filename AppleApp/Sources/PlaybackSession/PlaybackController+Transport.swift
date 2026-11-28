@@ -1,5 +1,5 @@
 import Foundation
-import BitChordShared
+import RedBitShared
 import os
 #if os(iOS)
 import UIKit
@@ -14,6 +14,7 @@ import AppKit
 extension PlaybackController {
     func audioInterruptionBegan() {
         guard isPlaying || isBuffering else { return }
+        debugLog.record("playback pause cause=system-interruption", about: current?.id)
         pausePlayback(releaseAudioSession: true)
         wasInterrupted = true
     }
@@ -21,6 +22,7 @@ extension PlaybackController {
     func audioInterruptionEnded(shouldResume: Bool) {
         let resumePending = wasInterrupted
         wasInterrupted = false
+        debugLog.record("system interruption ended resumePending=\(resumePending) shouldResume=\(shouldResume)", about: current?.id)
         guard resumePending, shouldResume, state == .paused else { return }
         togglePlayPause()
     }
@@ -31,6 +33,10 @@ extension PlaybackController {
         wasInterrupted = false
         noteLocalIntent()
         startEngineIfNeeded()
+        if state == .buffering, deferredNetworkRecovery != nil {
+            pausePlayback()
+            return
+        }
         if state == .buffering {
             // Pausing a track that is still loading keeps the load: the bytes
             // and the resolved URL are the expensive part, and throwing them
@@ -123,7 +129,7 @@ extension PlaybackController {
                            output.started, formatAgrees {
                             let message = "resume retained output \(output.sampleRate) Hz / \(output.channels) ch"
                             PlaybackDebugLog.shared.record(message)
-                            NSLog("[BitChord] %@", message)
+                            NSLog("[RED Bit] %@", message)
                             return
                         }
                         try engine.prepareTrackOutput(
@@ -138,7 +144,7 @@ extension PlaybackController {
                         )
                     }
                 } catch {
-                    NSLog("[BitChord] resume output preparation failed; continuing with current output: \(error)")
+                    NSLog("[RED Bit] resume output preparation failed; continuing with current output: \(error)")
                 }
                 await MainActor.run { [weak self] in
                     guard let self,
@@ -161,7 +167,7 @@ extension PlaybackController {
                         self.nowPlaying.updateRate(0, position: self.position)
                         self.state = .paused
                         VideoPlayback.shared.transportClockChanged()
-                        self.lastError = "Audio output could not resume: \(error)"
+                        self.reportPlaybackFailure(.output, message: "Audio output could not resume: \(error)")
                     }
                 }
             }
@@ -186,6 +192,17 @@ extension PlaybackController {
     }
 
     func pausePlayback(releaseAudioSession: Bool = false) {
+        // Beim Warten auf Netz gibt es keinen Load, den holdAfterLoad
+        // fortsetzen könnte. Eine bewusste Pause speichert stattdessen
+        // den Wiederanlaufpunkt; erst Play darf erneut laden.
+        if let pending = deferredNetworkRecovery, current?.id == pending.entryID,
+           playGeneration == pending.generation {
+            restoredStart = (pending.entryID, pending.position)
+            recoveryNeedsFreshResolution = true
+            position = pending.position
+            engineLoadedId = nil
+            recoveringEntryID = nil
+        }
         deferredNetworkRecovery = nil
         resumeGeneration &+= 1
         wasInterrupted = false

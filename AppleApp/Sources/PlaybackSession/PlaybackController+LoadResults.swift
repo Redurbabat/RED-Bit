@@ -1,5 +1,5 @@
 import Foundation
-import BitChordShared
+import RedBitShared
 import os
 #if os(iOS)
 import UIKit
@@ -39,7 +39,7 @@ extension PlaybackController {
             pending.firstBufferAt = firstBufferAt
             pendingPlaybackLatency = pending
         }
-        NSLog("[BitChord] loaded track at %.2fs (duration %.2fs)", startAt, info.durationSeconds)
+        NSLog("[RED Bit] loaded track at %.2fs (duration %.2fs)", startAt, info.durationSeconds)
         loadingGeneration = nil
         playingIndex = index
         current = entry
@@ -163,20 +163,41 @@ extension PlaybackController {
             pendingPlaybackLatency = nil
         }
         loadingGeneration = nil
+        // Ein Tipp auf den Wiedergabeknopf, während der automatisch gewählte
+        // nächste Titel noch lädt, hält das Laden an (`holdAfterLoad`). Das passiert
+        // gerade in der stillen Lücke nach einem Liedende, wenn man glaubt, die Musik
+        // sei stehengeblieben. Scheiterte der Titel dann, blieb die Wiedergabe mit
+        // einer Fehlermeldung stehen. Jetzt wird er auch hier übersprungen; der
+        // Ersatz lädt bereit und spielt auf den nächsten Tipp, statt ungefragt.
+        let heldByListener = holdAfterLoad && state == .paused
         holdAfterLoad = false
+        if recoveringEntryID == entry.id, current?.id == entry.id {
+            if !cancelled && retryFailedRecoveryLoad(entry: entry) { return }
+            // Auch nach dem letzten fehlgeschlagenen Load muss Play an der
+            // Unterbrechungsposition neu auflösen, nicht bei null anfangen.
+            restoredStart = (entry.id, position)
+            recoveryNeedsFreshResolution = true
+            recoveringEntryID = nil
+        }
         // A song this player moved to on its own is stepped over, not stopped
         // on: upstream's skipPastUnplayable, reached here only after the whole
         // recovery ladder in the resolver has already run.
-        if automaticLoadEntryId == entry.id, state == .buffering, automaticSkips < 3,
+        if automaticLoadEntryId == entry.id, state == .buffering || heldByListener, automaticSkips < 3,
            markUnplayable(entry, after: error),
            let next = nextPlayableIndex(after: playingIndex) {
             automaticSkips += 1
             PlaybackDebugLog.shared.record(
-                "could not play \(entry.title) (\(error.localizedDescription)); moving on to \(queue[next].title)",
+                "could not play \(entry.title) (\(error.localizedDescription)); moving on to \(queue[next].title)"
+                    + (heldByListener ? " (held: paused during load)" : ""),
                 about: entry.id
             )
             automaticLoadEntryId = queue[next].id
             loadCurrent(next, refreshAutoplay: true)
+            if heldByListener {
+                holdAfterLoad = true
+                state = .paused
+                nowPlaying.updateRate(0, position: position)
+            }
             return
         }
         automaticLoadEntryId = nil
@@ -191,7 +212,7 @@ extension PlaybackController {
                 about: entry.id
             )
             let format = AppLanguage.localized("Couldn't play “%@” — %@")
-            lastError = String(format: format, entry.title, error.localizedDescription)
+            reportPlaybackFailure(.load, message: String(format: format, entry.title, error.localizedDescription))
         }
         // Somebody (pause, another load, sleep, interruption) owns the
         // transport now; their state stands and only the message is new.
@@ -392,12 +413,13 @@ extension PlaybackController {
                     await MainActor.run { [weak self] in
                         guard let self, self.playGeneration == generation,
                               self.queueNextRevision == revision, self.current?.id == outgoingId else { return }
-                        self.adoptAutomixPlan(safetyPlan)
+                        self.adoptAutomixPlan(safetyPlan, outgoingSource: currentSource,
+                            incomingSource: resolved.source, incomingHeaders: resolved.headers)
                     }
                 }
                 if automix {
                     NSLog(
-                        "[BitChord] automix queued %@%@ with an immediate %.1fs overlap",
+                        "[RED Bit] automix queued %@%@ with an immediate %.1fs overlap",
                         next.title,
                         selfMix ? " (self-mix)" : "",
                         safetyPlan?.fadeSeconds ?? 0
@@ -450,7 +472,7 @@ extension PlaybackController {
                         )
                         if outOk || inOk {
                             NSLog(
-                                "[BitChord] Music Understanding overlay out=%@ in=%@",
+                                "[RED Bit] Music Understanding overlay out=%@ in=%@",
                                 outOk ? "yes" : "no",
                                 inOk ? "yes" : "no"
                             )
@@ -500,7 +522,7 @@ extension PlaybackController {
                     if delivered {
                         let shown = Self.displayAutomixReason(plan.reason)
                         NSLog(
-                            "[BitChord] automix plan %d for %@%@: %@, cue %.2fs, fade %.2fs, end %.1fs — %@",
+                            "[RED Bit] automix plan %d for %@%@: %@, cue %.2fs, fade %.2fs, end %.1fs — %@",
                             attempt, next.title, selfMix ? " (self-mix)" : "",
                             String(describing: plan.style),
                             plan.cueSeconds, plan.fadeSeconds, plan.transitionEndSeconds,
@@ -517,7 +539,8 @@ extension PlaybackController {
                         )
                         await MainActor.run { [weak self] in
                             guard let self, self.queueNextRevision == revision else { return }
-                            self.adoptAutomixPlan(plan)
+                            self.adoptAutomixPlan(plan, outgoingSource: currentSource,
+                                incomingSource: resolved.source, incomingHeaders: resolved.headers)
                         }
                     }
                     // Replan after delivery too: the incoming/outgoing windows

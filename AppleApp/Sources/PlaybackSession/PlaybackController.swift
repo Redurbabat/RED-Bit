@@ -1,5 +1,5 @@
 import Foundation
-import BitChordShared
+import RedBitShared
 import os
 #if os(iOS)
 import UIKit
@@ -145,11 +145,20 @@ final class PlaybackController {
     }
     var position: Double = 0
     var duration: Double = 0
-    var lastError: String?
+    var lastError: String? {
+        didSet { lastPlaybackFailure = nil }
+    }
+    var lastPlaybackFailure: PlaybackDiagnosticFailure?
+
+    func reportPlaybackFailure(_ kind: PlaybackDiagnosticFailure, message: String) {
+        lastError = message
+        lastPlaybackFailure = kind
+    }
     var recoveringEntryID: String?
     var recoveryNeedsFreshResolution = false
     var sourceDecisionNotes: [String: String] = [:]
     @ObservationIgnored var streamRecovery = PlaybackRecoveryPolicy()
+    @ObservationIgnored var outputWatchdog = PlaybackOutputWatchdog()
     @ObservationIgnored var pendingPlaybackLatency: PlaybackLatencySample?
     @ObservationIgnored var nextPreparationTask: Task<Void, Never>?
     @ObservationIgnored var urlPrefetchTask: Task<Void, Never>?
@@ -252,7 +261,7 @@ final class PlaybackController {
     var isBuffering: Bool { state == .buffering }
 #if os(iOS)
     private(set) var mixWithOtherAudio = PlatformSettings.shared.getBoolean(
-        key: "mix_with_other_audio", default: true
+        key: "mix_with_other_audio", default: false
     )
     private var mixingPreferenceGeneration: UInt64 = 0
 
@@ -313,6 +322,9 @@ final class PlaybackController {
     /// `id` of the track that was current when [repeatAllStash] was taken.
     var repeatAllStashSeed: String?
     @ObservationIgnored var autoplayRefresh = AutoplayRefreshState()
+    @ObservationIgnored var autoplaySeeds = AutoplaySeedState()
+    var automixPreviewRequest: AutomixPreviewRequest?
+    var queuedAutomixPreviewRequest: AutomixPreviewRequest?
     // Wartet auf die Rückmeldung des Party-Servers, bevor neu aufgefüllt wird.
     @ObservationIgnored var partyAutoplayPendingIDs: Set<String> = []
     @ObservationIgnored var partyAutoplayEchoTask: Task<Void, Never>?
@@ -405,6 +417,7 @@ final class PlaybackController {
     var sleepDeadline: ContinuousClock.Instant?
     var sleepTask: Task<Void, Never>?
     var sleepSecondsRemaining: Int?
+    var sleepDurationSeconds: Double?
     var sleepAfterTrack = false
     var autoplayEnabled = PlatformSettings.shared.getBoolean(key: "autoplay", default: true)
     var automixEnabled = PlatformSettings.shared.getBoolean(key: "smart_fade_enabled", default: true)
@@ -589,6 +602,7 @@ final class PlaybackController {
             onOldDeviceUnavailable: { [weak self] in
                 Task { @MainActor in
                     guard let self, self.isPlaying || self.isBuffering || self.wasInterrupted else { return }
+                    self.debugLog.record("playback pause cause=output-device-unavailable", about: self.current?.id)
                     self.pausePlayback()
                 }
             }
@@ -619,14 +633,14 @@ final class PlaybackController {
             began: { [weak self] in
                 Task { @MainActor in
                     guard let self else { return }
-                    NSLog("[BitChord] Audio interruption began")
+                    NSLog("[RED Bit] Audio interruption began")
                     self.audioInterruptionBegan()
                 }
             },
             ended: { [weak self] shouldResume in
                 Task { @MainActor in
                     guard let self else { return }
-                    NSLog("[BitChord] Audio interruption ended, shouldResume=\(shouldResume)")
+                    NSLog("[RED Bit] Audio interruption ended, shouldResume=\(shouldResume)")
                     self.audioInterruptionEnded(shouldResume: shouldResume)
                 }
             }
@@ -634,7 +648,7 @@ final class PlaybackController {
         // Log secondary audio events and media reset notifications
         routeObservers += AudioSessionManager.observeSessionEvents { [weak self] event in
             PlaybackDebugLog.shared.record(event)
-            NSLog("[BitChord] %@", event)
+            NSLog("[RED Bit] %@", event)
             if event == "audio media services were reset" {
                 Task { @MainActor in
                     self?.nowPlaying.audioSessionUnavailable()
@@ -769,7 +783,7 @@ final class PlaybackController {
                     self.started = false
                     self.positionTimer?.invalidate()
                     self.positionTimer = nil
-                    self.lastError = "Audio engine failed to start: \(error)"
+                    self.reportPlaybackFailure(.engine, message: "Audio engine failed to start: \(error)")
                 }
                 throw error
             }
@@ -850,10 +864,35 @@ final class PlaybackController {
         }
     }
 
+    /// Repariert eine blockierte Ausgabe ohne Neuauflösung des Musikstreams.
+    /// Die Transportgeneration schützt gegen Pause, Skip und neue Auswahl.
+    func recoverStalledOutput() {
+        guard started, state == .playing, dolbyRenderer == nil else { return }
+        let selection = playGeneration
+        let intent = resumeGeneration
+        let engine = self.engine
+        debugLog.record("watchdog output recovery requested; bufferedFrames=\(engine.outputHealth().bufferedFrames)", about: current?.id)
+        Task { [weak self] in
+            do {
+                _ = try await AudioSessionManager.activate()
+                guard let self, self.state == .playing, self.dolbyRenderer == nil,
+                      self.playGeneration == selection, self.resumeGeneration == intent else { return }
+                try engine.requestOutputRebuild(force: true)
+                self.debugLog.record("watchdog output rebuild requested", about: self.current?.id)
+                self.nowPlaying.requestPrimaryIfPossible(reason: "output watchdog")
+            } catch {
+                guard let self, self.state == .playing,
+                      self.playGeneration == selection, self.resumeGeneration == intent else { return }
+                self.debugLog.record("watchdog output recovery failed", about: self.current?.id)
+                self.reportPlaybackFailure(.audioSession, message: "Audio output recovery failed. Pause and press Play to retry.")
+            }
+        }
+    }
+
     func audioActivationFailed(_ error: Error) {
         nowPlaying.audioSessionUnavailable()
         if isPlaying || isBuffering { pausePlayback(releaseAudioSession: true) }
-        lastError = "Audio session could not activate: \(error)"
+        reportPlaybackFailure(.audioSession, message: "Audio session could not activate: \(error)")
     }
 
     /// The output route moved under us — AirPods put down, a device connected,
@@ -872,6 +911,7 @@ final class PlaybackController {
     ///    even if CoreAudio's own rebuild beat us to it.
     private var routeRecoveryGeneration: UInt64 = 0
     private func outputRouteChanged() {
+        AppTestEvents.emit(.audioRoute, .observation, .routeChanged)
         let route = AudioRouteState.shared
         let returnedFromBluetooth = route.previousKind.lowercased().contains("bluetooth") && route.carriesLossless
         routeRecoveryGeneration &+= 1
@@ -913,7 +953,7 @@ final class PlaybackController {
                     }
                     self.nowPlaying.requestPrimaryIfPossible(reason: "route activation")
                 } catch {
-                    NSLog("[BitChord] output rebuild after route change failed: \(error)")
+                    NSLog("[RED Bit] output rebuild after route change failed: \(error)")
                 }
             }
         }

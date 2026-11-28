@@ -2,7 +2,7 @@ import SwiftUI
 #if os(iOS)
 import UIKit
 #endif
-import BitChordShared
+import RedBitShared
 
 /// Account & Settings hub — Apple-style modal account sheet and profile switcher.
 ///
@@ -315,6 +315,9 @@ struct TopBarAccountButton: View {
         }
         .buttonStyle(ProfileCircleButtonStyle())
         .accessibilityLabel(auth.signedIn ? "Account and Settings" : "Sign In and Settings")
+        #if os(iOS)
+        .modifier(BloomToolbarBoundary())
+        #endif
         .contextMenu {
             if auth.signedIn {
                 Button {
@@ -448,52 +451,6 @@ struct ProfileCircleButtonStyle: ButtonStyle {
     }
 }
 
-/// An account's avatar, which opens the selector and steps between identities on
-/// a swipe. The compact control upstream puts on every visible account avatar.
-struct AccountAvatarButton: View {
-    @Environment(AuthController.self) private var auth
-    @Environment(PlaybackController.self) private var controller
-    @Environment(AppModel.self) private var appModel
-    #if os(macOS)
-    @Environment(\.openSettings) private var openSettings
-    #endif
-    @State private var showingSheet = false
-
-    private var profile: AccountProfile? { auth.listeningAs?.activeProfile }
-
-    var body: some View {
-        Button {
-            showingSheet = true
-        } label: {
-            Avatar(url: profile?.avatar, name: profile?.name ?? "Account", side: 34)
-                .overlay(alignment: .bottomTrailing) {
-                    Image(systemName: "person.crop.circle.badge.checkmark")
-                        .scaledFont(size: 11, weight: .semibold)
-                        .foregroundStyle(.white, .black.opacity(0.55))
-                        .offset(x: 2, y: 2)
-                }
-        }
-        .buttonStyle(.plain)
-        .disabled(!auth.signedIn || auth.listeningAs == nil)
-        .opacity(auth.signedIn && auth.listeningAs != nil ? 1 : 0.4)
-        .accessibilityLabel(auth.listeningAs.map { "Listening as \($0.activeProfile?.name ?? $0.displayName)" } ?? "Not signed in")
-        .accessibilityHint("Choose which YouTube channel to listen as")
-        .sheet(isPresented: $showingSheet) {
-            AccountProfileSheet(scopedAccountId: auth.listeningAs?.id)
-                .environment(controller)
-                .environment(appModel)
-                .environment(auth)
-        }
-        .gesture(
-            DragGesture(minimumDistance: 24)
-                .onEnded { value in
-                    guard abs(value.translation.width) > abs(value.translation.height) else { return }
-                    auth.stepProfile(forward: value.translation.width < 0)
-                }
-        )
-    }
-}
-
 /// A round image that falls back to a monogram, on a chrome backing.
 struct Avatar: View {
     let url: String?
@@ -534,7 +491,7 @@ struct Avatar: View {
 }
 
 #if os(iOS)
-/// A page's leading top-bar items: the BitChord mark and, on the iPad, back and
+/// A page's leading top-bar items: the RedBit mark and, on the iPad, back and
 /// forward through the tab's pages, beside it as the Mac's titlebar has them.
 struct TopBarLeadingItems: ToolbarContent {
     @Environment(\.pageHistory) private var history
@@ -621,6 +578,11 @@ struct TopBarLeadingMark: View {
             .accessibilityLabel("RED Bit: Glass Bloom öffnen")
             .accessibilityHint("Tippen für die Musikblase, halten oder nach unten ziehen für die Musiksteuerung. Beim Hochscrollen erscheint sie auch automatisch.")
             .accessibilityIdentifier("bbt.logoGlassBloom.trigger")
+            .onGeometryChange(for: CGRect.self) { proxy in
+                proxy.frame(in: .global)
+            } action: { frame in
+                bloom.updateLogoFrame(frame)
+            }
         } else {
             logoImage
         }
@@ -633,7 +595,7 @@ struct TopBarLeadingMark: View {
         Image(.bchLogo)
             .resizable()
             .scaledToFit()
-            .frame(width: 28, height: 18)
+            .frame(width: 24, height: 24)
             .accessibilityHidden(true)
     }
 }

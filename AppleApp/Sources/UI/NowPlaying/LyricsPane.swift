@@ -1,5 +1,5 @@
 import SwiftUI
-import BitChordShared
+import RedBitShared
 import UniformTypeIdentifiers
 import AVKit
 import CoreImage
@@ -594,6 +594,7 @@ func lyricTextIsRightToLeft(_ text: String) -> Bool {
 
 private struct WordSyncedLine: View {
     @AppStorage("lyrics_blur") private var lyricsBlur = true
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let line: LyricLineDto
     let hasSyncedTimings: Bool
     let active: Bool
@@ -634,7 +635,9 @@ private struct WordSyncedLine: View {
                 // looking at it.
                 .shadow(color: active ? .white.opacity(0.35) : .clear, radius: active ? 8 : 0, y: 0)
                 .scaleEffect(
-                    active ? 1.04 : 1,
+                    // Unter „Bewegung reduzieren“ markieren Helligkeit und
+                    // Schein die Zeile; sie wächst nicht bei jedem Wechsel.
+                    active && !reduceMotion ? 1.04 : 1,
                     anchor: isSecondVoice != isRightToLeft ? .trailing : .leading
                 )
                 .contentShape(Rectangle())

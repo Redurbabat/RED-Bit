@@ -1,5 +1,5 @@
 import SwiftUI
-import BitChordShared
+import RedBitShared
 import UniformTypeIdentifiers
 import AVKit
 import CoreImage
@@ -13,15 +13,20 @@ import AppKit
 
 // The stage: artwork or lyrics, the side panel, and the playback deck.
 extension NowPlayingView {
+    /// Takt der Lyrics-Bühne; siehe die Begründung am iPhone-Pfad unten.
+    static let lyricsFrameInterval: Double = 1.0 / 60.0
+
     var desktopLyricsPane: some View {
-        TimelineView(.animation(minimumInterval: nil, paused: !controller.isPlaying)) { timeline in
+        TimelineView(.animation(minimumInterval: NowPlayingView.lyricsFrameInterval, paused: !controller.isPlaying)) { timeline in
             if lyricsConstellation, LyricsConstellationView.isAvailable(lines: controller.displayedLyrics) {
                 LyricsConstellationView(
                     lines: controller.displayedLyrics,
                     position: controller.livePosition(at: timeline.date),
                     offsetMs: lyricsOffsetMs,
-                    onClose: { lyricsConstellation = false }
+                    onClose: { lyricsConstellation = false },
+                    duration: controller.duration
                 )
+                .id(controller.current?.id)
             } else {
             LyricsPane(
                 lines: controller.displayedLyrics,
@@ -166,6 +171,7 @@ extension NowPlayingView {
                     canvasURL: controller.canvasURL,
                     fallbackURL: controller.canvasFallbackURL,
                     isPlaying: controller.isPlaying,
+                    isBuffering: controller.isBuffering,
                     side: side
                 )
                 .id(controller.current?.id)
@@ -203,8 +209,10 @@ extension NowPlayingView {
                     canvasURL: controller.canvasURL,
                     fallbackURL: controller.canvasFallbackURL,
                     isPlaying: controller.isPlaying,
+                    isBuffering: controller.isBuffering,
                     canvasActive: !VideoPlayback.shared.showsVideo,
-                    side: side
+                    side: side,
+                    interactiveTilt: true
                 )
             }
             .id(controller.current?.id)
@@ -229,14 +237,20 @@ extension NowPlayingView {
             // from a frame clock for exactly this reason. The interpolated
             // position is still the engine's measurement; the TimelineView only
             // decides how often we ask where it has got to.
-            TimelineView(.animation(minimumInterval: nil, paused: !controller.isPlaying)) { timeline in
+            //
+            // Höchstens 60-mal pro Sekunde: Ohne Grenze baute ProMotion die ganze
+            // Lyrics-Ansicht bis zu 120-mal pro Sekunde neu. Eine Wortfüllung bleibt
+            // bei 60 Hz flüssig, und das Sternbild zeichnet ohnehin mit eigenen 60 Hz.
+            TimelineView(.animation(minimumInterval: NowPlayingView.lyricsFrameInterval, paused: !controller.isPlaying)) { timeline in
             if lyricsConstellation, LyricsConstellationView.isAvailable(lines: controller.displayedLyrics) {
                 LyricsConstellationView(
                     lines: controller.displayedLyrics,
                     position: controller.livePosition(at: timeline.date),
                     offsetMs: lyricsOffsetMs,
-                    onClose: { lyricsConstellation = false }
+                    onClose: { lyricsConstellation = false },
+                    duration: controller.duration
                 )
+                .id(controller.current?.id)
             } else {
             LyricsPane(
                 lines: controller.displayedLyrics,
@@ -297,7 +311,48 @@ extension NowPlayingView {
         #endif
     }
 
+    @ViewBuilder
     var deck: some View {
+        #if os(iOS)
+        if !isIPad && pane == .main && !dynamicTypeSize.isAccessibilitySize {
+            radialPortraitDeck
+        } else {
+            standardDeck
+        }
+        #else
+        standardDeck
+        #endif
+    }
+
+    #if os(iOS)
+    private var radialPortraitDeck: some View {
+        VStack(spacing: 4) {
+            Text(controller.current?.title ?? AppLanguage.localized("Not Playing"))
+                .font(.headline)
+                .foregroundStyle(.white)
+                .lineLimit(2)
+                .multilineTextAlignment(.center)
+            ArtistCreditText(credit: controller.current?.artist ?? "", font: .subheadline,
+                             color: .white.opacity(0.7), suffix: albumSuffix)
+            if showsPlaybackStatusLine, let status = songStatusLine {
+                Button { showPipeline = true } label: { Text(status) }
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.5))
+                    .buttonStyle(.plain)
+            }
+            ArcPlaybackDeck(onLyrics: { pane = .lyrics }, onQueue: { pane = .queue }, more: moreMenu)
+            if !controller.hideVolumeBar {
+                deckVolumeRow.padding(.horizontal, 32)
+            }
+            if controller.lyricsLoading || !controller.displayedLyrics.isEmpty { currentLyricStrip }
+        }
+        .padding(.top, 10)
+        .padding(.bottom, 8)
+        .background(.black.opacity(0.8))
+    }
+    #endif
+
+    private var standardDeck: some View {
         VStack(spacing: 14) {
             // Credits, status and strip live on the main player only. Upstream's
             // queue screen goes Lyrics link straight to the scrubber — the song

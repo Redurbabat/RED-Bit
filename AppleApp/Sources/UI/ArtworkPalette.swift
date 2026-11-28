@@ -1,5 +1,6 @@
 import SwiftUI
 import CoreGraphics
+import ImageIO
 #if os(iOS)
 import UIKit
 #else
@@ -31,12 +32,32 @@ enum ArtworkPalette {
         ]
     }
 
+    /// Gemerkte Ergebnisse je Cover. Player, Hintergrund und Seitenfarbe fragen
+    /// dasselbe Cover mehrmals hintereinander ab, oft auf dem Hauptthread.
+    private final class SampleBox: NSObject { let colors: [Color]?; init(_ colors: [Color]?) { self.colors = colors } }
+    private static let samples: NSCache<NSString, SampleBox> = {
+        let cache = NSCache<NSString, SampleBox>()
+        cache.countLimit = 64
+        return cache
+    }()
+
     private static func sample(_ data: Data) -> [Color]? {
-#if os(iOS)
-        guard let image = UIImage(data: data)?.cgImage else { return nil }
-#else
-        guard let image = NSImage(data: data)?.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
-#endif
+        let key = ArtworkCache.dataKey(data, maxPixels: 24) as NSString
+        if let hit = samples.object(forKey: key) { return hit.colors }
+        let colors = sampleUncached(data)
+        samples.setObject(SampleBox(colors), forKey: key)
+        return colors
+    }
+
+    private static func sampleUncached(_ data: Data) -> [Color]? {
+        // ImageIO liefert direkt ein kleines Vorschaubild. Früher wurde das ganze
+        // Cover (bis 1200 px) dekodiert, nur um es danach auf 24 px zu verkleinern.
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+                  kCGImageSourceCreateThumbnailFromImageAlways: true,
+                  kCGImageSourceCreateThumbnailWithTransform: true,
+                  kCGImageSourceThumbnailMaxPixelSize: 64,
+              ] as CFDictionary) else { return nil }
         let width = min(image.width, 24)
         let height = min(image.height, 24)
         guard width > 0, height > 0 else { return nil }
