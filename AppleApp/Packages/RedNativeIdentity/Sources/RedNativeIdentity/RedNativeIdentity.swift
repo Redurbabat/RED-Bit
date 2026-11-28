@@ -120,6 +120,57 @@ struct RedBitReadJob: Decodable {
     }
 }
 
+public enum RedBitServerCommand: String, Codable, Sendable {
+    case play, pause, next, previous
+}
+public enum RedBitServerOutcome: String, Sendable {
+    case executed, failed, declined
+}
+public struct RedBitTransportJob: Decodable, Equatable, Sendable {
+    public let id: String
+    public let command: RedBitServerCommand
+    public let expiresAt: Int64
+    public var expiryDate: Date { Date(timeIntervalSince1970: Double(expiresAt) / 1000) }
+
+    private struct Envelope: Decodable {
+        let version: Int
+        let job: RedBitTransportJob?
+    }
+    static func parseClaim(_ data: Data, now: Date, sessionExpiry: Date) throws -> Self? {
+        guard data.count <= 2048,
+              let fields = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              Set(fields.keys) == Set(["version", "job"]),
+              let envelope = try? JSONDecoder().decode(Envelope.self, from: data),
+              envelope.version == 1 else { throw RedNativeError.invalidResponse }
+        if fields["job"] is NSNull { return nil }
+        guard let job = envelope.job, let raw = fields["job"] as? [String: Any],
+              Set(raw.keys) == Set(["id", "command", "expiresAt"]),
+              job.id.utf8.count == 32,
+              job.id.utf8.allSatisfy({ (48...57).contains($0) || (97...102).contains($0) }),
+              job.expiryDate > now, job.expiryDate <= now.addingTimeInterval(30),
+              job.expiryDate <= sessionExpiry else { throw RedNativeError.invalidResponse }
+        return job
+    }
+    static func parsePermit(_ data: Data, job: Self, now: Date) throws -> Date {
+        struct Permit: Decodable {
+            let version: Int
+            let id: String
+            let command: RedBitServerCommand
+            let expiresAt: Int64
+        }
+        guard data.count <= 2048,
+              let fields = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              Set(fields.keys) == Set(["version", "id", "command", "expiresAt"]),
+              let permit = try? JSONDecoder().decode(Permit.self, from: data),
+              permit.version == 1, permit.id == job.id, permit.command == job.command
+        else { throw RedNativeError.invalidResponse }
+        let expires = Date(timeIntervalSince1970: Double(permit.expiresAt) / 1000)
+        guard expires > now, expires <= now.addingTimeInterval(5),
+              expires <= job.expiryDate else { throw RedNativeError.invalidResponse }
+        return expires
+    }
+}
+
 public protocol RedNativeCredentialStore {
     func load(scope: String) throws -> Data?
     func save(_ value: Data, scope: String) throws
@@ -185,6 +236,7 @@ public actor RedNativeClient {
     private let store: RedNativeCredentialStore
     private let session: URLSession
     private var busy = false
+    private var pendingTransport: (job: RedBitTransportJob, token: String)?
 
     public init(origin: String, app: String, store: RedNativeCredentialStore = RedKeychainStore()) throws {
         self.scope = try Self.credentialScope(origin: origin, app: app)
@@ -355,10 +407,63 @@ public actor RedNativeClient {
         return true
     }
 
+    /// Manuelle Abholung; keine Ausführung und kein automatisches Polling.
+    public func claimRedBitTransportJob() async throws -> RedBitTransportJob? {
+        guard app == "red-bit" else { throw RedNativeError.invalidApp }
+        try enter(); defer { busy = false }
+        guard pendingTransport == nil || pendingTransport!.job.expiryDate <= Date()
+        else { throw RedNativeError.busy }
+        pendingTransport = nil
+        try Task.checkCancellation()
+        let value = try await current()
+        try Task.checkCancellation()
+        guard let expiry = Self.date(value.refreshExpiresAt) else { throw RedNativeError.invalidResponse }
+        let body = try JSONSerialization.data(withJSONObject: ["confirm": true])
+        let data = try await send("/red-bit/v1/transport-claim", method: "POST", token: value.accessToken, jsonBody: body)
+        try Task.checkCancellation()
+        guard let job = try RedBitTransportJob.parseClaim(data, now: Date(), sessionExpiry: expiry) else { return nil }
+        pendingTransport = (job, value.accessToken)
+        return job
+    }
+
+    /// Die UI muss den konkreten Befehl anzeigen und bestätigen lassen.
+    /// Der synchrone MainActor-Callback prüft Ablauf, lokale Freigabe und
+    /// aktiven Bildschirm erneut unmittelbar vor der lokalen Anforderung.
+    public func finishRedBitTransportJob(_ job: RedBitTransportJob, confirmed: Bool,
+        execute: @MainActor @Sendable (RedBitServerCommand, Date) throws -> RedBitServerOutcome) async throws -> RedBitServerOutcome {
+        guard app == "red-bit" else { throw RedNativeError.invalidApp }
+        try enter(); defer { busy = false }
+        guard let pending = pendingTransport, pending.job == job else { throw RedNativeError.invalidResponse }
+        pendingTransport = nil // consume before any network call; never retry
+        try Task.checkCancellation()
+        let value = try load()
+        guard value.accessToken == pending.token, job.expiryDate > Date(),
+              let accessExpiry = Self.date(value.expiresAt), accessExpiry > Date()
+        else { throw RedNativeError.invalidResponse }
+        let outcome: RedBitServerOutcome
+        if confirmed {
+            let body = try JSONSerialization.data(withJSONObject: ["id": job.id, "command": job.command.rawValue, "confirm": true])
+            let data = try await send("/red-bit/v1/transport-authorize", method: "POST", token: value.accessToken, jsonBody: body)
+            let deadline = try RedBitTransportJob.parsePermit(data, job: job, now: Date())
+            try Task.checkCancellation()
+            outcome = try await execute(job.command, deadline)
+            guard outcome != .declined else { throw RedNativeError.invalidResponse }
+        } else {
+            outcome = .declined
+        }
+        try Task.checkCancellation()
+        guard job.expiryDate > Date() else { throw RedNativeError.invalidResponse }
+        let body = try JSONSerialization.data(withJSONObject: ["id": job.id, "outcome": outcome.rawValue])
+        let data = try await send("/red-bit/v1/transport-complete", method: "POST", token: value.accessToken, jsonBody: body)
+        try RedBitReadJob.validateReceipt(data)
+        return outcome
+    }
+
     /// If the server cannot be reached, throws after clearing local credentials.
     /// Remote revocation must then be performed in RED ION settings.
     public func logout() async throws {
         try enter(); defer { busy = false }
+        pendingTransport = nil
         do {
             let value = try await current()
             _ = try await request("logout", token: value.accessToken)

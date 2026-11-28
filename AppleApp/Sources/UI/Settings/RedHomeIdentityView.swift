@@ -8,6 +8,11 @@ struct RedHomeIdentityView: View {
     // Injiziert aus der App, damit die SDK-Ansicht eigenständig prüfbar bleibt.
     var readStatus: (@MainActor @Sendable () throws -> String)? = nil
     var canReadStatus: (@MainActor @Sendable () -> Bool)? = nil
+    var canTransport: (@MainActor @Sendable () -> Bool)? = nil
+    var executeTransport: (@MainActor @Sendable (RedBitServerCommand) throws -> RedBitServerOutcome)? = nil
+    @State private var transportJob: RedBitTransportJob?
+    @State private var transportTask: Task<Void, Never>?
+    @State private var transportStatus: LocalizedStringKey = "Noch nicht geprüft."
     @Environment(\.scenePhase) private var scenePhase
     @State private var visible = false
     @State private var confirmReadJob = false
@@ -124,17 +129,32 @@ struct RedHomeIdentityView: View {
                 Text("Nur mit lokaler Statusfreigabe. Übermittelt bei einem offenen Auftrag einmalig Wiedergabezustand, Position und Dauer sowie begrenzte Statusmerkmale an deinen privaten Server. Keine Titel oder Kontodaten. Keine Musiksteuerung.")
                     .font(.footnote).foregroundStyle(.secondary)
             }
+            Section("Server-Musiksteuerung") {
+                Button("Musikauftrag abrufen") { claimTransportJob() }
+                    .disabled(busy || savedOrigin.isEmpty || proof != nil || transportJob != nil || executeTransport == nil || canTransport?() != true || scenePhase != .active)
+                if let job = transportJob {
+                    LabeledContent("Befehl", value: transportLabel(job.command))
+                    Text(job.expiryDate, format: .dateTime.hour().minute().second())
+                    Button("Diesen Befehl ausführen") { finishTransportJob(confirmed: true) }
+                        .disabled(busy || canTransport?() != true || scenePhase != .active)
+                    Button("Auftrag ablehnen", role: .cancel) { finishTransportJob(confirmed: false) }
+                        .disabled(busy)
+                }
+                Text(transportStatus).font(.footnote).foregroundStyle(.secondary)
+                Text("Nur manuelle Einzelaufträge mit lokaler Freigabe. Keine Hintergrundsteuerung und keine automatische Wiederholung.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
         .navigationTitle("RED Home Server")
         .onAppear { visible = true; if origin.isEmpty { origin = savedOrigin } }
         .onDisappear {
             visible = false
-            readTask?.cancel()
+            readTask?.cancel(); transportTask?.cancel(); transportJob = nil
             clearProof(); permission = nil; permissionStatus = "Noch nicht geprüft."
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase != .active { readTask?.cancel() }
+            if phase != .active { readTask?.cancel(); transportTask?.cancel(); transportJob = nil }
         }
         .confirmationDialog("Status einmalig an den privaten Server senden?", isPresented: $confirmReadJob, titleVisibility: .visible) {
             Button("Auftrag prüfen und beantworten") { respondToReadJob() }
@@ -148,6 +168,7 @@ struct RedHomeIdentityView: View {
                     do {
                         try await client.logout()
                         identity = nil
+                        transportJob = nil
                         clearProof()
                         savedOrigin = ""
                         origin = ""
@@ -155,6 +176,7 @@ struct RedHomeIdentityView: View {
                         status = "RED ID getrennt."
                     } catch {
                         identity = nil
+                        transportJob = nil
                         clearProof()
                         // Native SDK clears local credentials even if remote logout fails.
                         // Keep the origin to allow the owner to verify/retry; no silent success.
@@ -168,7 +190,7 @@ struct RedHomeIdentityView: View {
                 do {
                     let scope = try RedNativeClient.credentialScope(origin: savedOrigin, app: "red-bit")
                     try RedKeychainStore().clear(scope: scope)
-                    identity = nil; clearProof(); savedOrigin = ""; origin = ""; client = nil
+                    identity = nil; transportJob = nil; clearProof(); savedOrigin = ""; origin = ""; client = nil
                     permission = nil; permissionStatus = "Noch nicht geprüft."
                     status = "Lokaler Zugang gelöscht. Serverzugang separat in RED ION widerrufen."
                 } catch { status = "Lokale Zugangsdaten konnten nicht gelöscht werden." }
@@ -197,6 +219,57 @@ struct RedHomeIdentityView: View {
                 // Auch bei Cancellation kann eine bereits gesendete Antwort
                 // angekommen sein; kein automatischer erneuter Versuch.
                 readJobStatus = "Statusantwort nicht bestätigt. Keine automatische Wiederholung."
+            }
+        }
+    }
+    private func transportLabel(_ command: RedBitServerCommand) -> String {
+        switch command {
+        case .play: return "Play – Wiedergabe starten"
+        case .pause: return "Pause – Wiedergabe pausieren"
+        case .next: return "Next – Nächster Titel"
+        case .previous: return "Previous – Vorheriger Titel"
+        }
+    }
+    @MainActor
+    private func claimTransportJob() {
+        guard !busy, visible, scenePhase == .active, transportJob == nil, canTransport?() == true else { return }
+        busy = true
+        transportStatus = "Musikauftrag wird geprüft."
+        transportTask = Task { @MainActor in
+            defer { busy = false; transportTask = nil }
+            do {
+                let job = try await getClient().claimRedBitTransportJob()
+                try Task.checkCancellation()
+                guard visible, scenePhase == .active, canTransport?() == true else { throw CancellationError() }
+                transportJob = job
+                transportStatus = job == nil ? "Kein offener Musikauftrag." : "Konkreten Befehl prüfen und bestätigen."
+            } catch {
+                transportStatus = "Abruf nicht bestätigt. Keine automatische Wiederholung."
+            }
+        }
+    }
+    @MainActor
+    private func finishTransportJob(confirmed: Bool) {
+        guard !busy, visible, scenePhase == .active, let job = transportJob, let executeTransport,
+              !confirmed || canTransport?() == true else { return }
+        transportJob = nil
+        busy = true
+        transportTask = Task { @MainActor in
+            defer { busy = false; transportTask = nil }
+            do {
+                let outcome = try await getClient().finishRedBitTransportJob(job, confirmed: confirmed) { command, deadline in
+                    try Task.checkCancellation()
+                    guard visible, scenePhase == .active, canTransport?() == true, deadline > Date()
+                    else { throw CancellationError() }
+                    return try executeTransport(command)
+                }
+                switch outcome {
+                case .executed: transportStatus = "Befehl angefordert, Serverquittung erhalten."
+                case .declined: transportStatus = "Auftrag abgelehnt."
+                case .failed: transportStatus = "Befehl nicht verfügbar oder gesperrt."
+                }
+            } catch {
+                transportStatus = "Ausgang nicht bestätigt. Wiedergabe prüfen; nicht automatisch wiederholen."
             }
         }
     }
