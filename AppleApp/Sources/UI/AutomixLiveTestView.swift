@@ -27,6 +27,11 @@ struct AutomixLiveSample: Codable {
     let sourceLoaded: Bool
     let decoderReported: Bool
     let outputDeviceStarted: Bool
+    let bufferedFrames: UInt64
+    let callbackUnderruns: UInt64
+    let outputRebuilds: UInt64
+    let outputXruns: UInt64
+    let stalledSeconds: Double
     let audioSessionActive: Bool?
 }
 
@@ -74,6 +79,8 @@ final class AutomixLiveTestMonitor {
     @ObservationIgnored private var baseTransition: UInt64 = 0
     @ObservationIgnored private var observedPlanRevision: UInt64 = 0
     @ObservationIgnored private var progressTracker = PlaybackProgressTracker()
+    @ObservationIgnored private var stallTracker = PlaybackStallTracker()
+    @ObservationIgnored private var reportedStall = false
     @ObservationIgnored private let archive: AppTestReportStore
     @ObservationIgnored private var modelTask: Task<Void, Never>?
     @ObservationIgnored private var designTask: Task<Void, Never>?
@@ -122,6 +129,7 @@ final class AutomixLiveTestMonitor {
         message = nil
         runtime = AutomixRuntimeSnapshot(beatReady: false, vocalsRequested: false, coreMLLoaded: false, configuredAt: nil)
         progressTracker = PlaybackProgressTracker()
+        stallTracker = PlaybackStallTracker(); reportedStall = false
         basePlan = controller.automixPlanRevision
         baseTransition = controller.automixTransitionRevision
         observedPlanRevision = basePlan
@@ -145,7 +153,7 @@ final class AutomixLiveTestMonitor {
             while !Task.isCancelled {
                 do { try await Task.sleep(for: .seconds(1)) } catch { return }
                 guard let self, self.running, self.sessionID == run, let controller else { return }
-                if Date().timeIntervalSince(self.startedAt ?? Date()) >= 30 * 60 {
+                if Date().timeIntervalSince(self.startedAt ?? Date()) >= 60 * 60 {
                     self.message = "Zeitlimit erreicht. Der Test wurde automatisch beendet."
                     self.stop()
                     return
@@ -233,11 +241,16 @@ final class AutomixLiveTestMonitor {
     }
 
     private func record(controller: PlaybackController) {
-        guard running, let startedAt, samples.count < 1800 else { return }
+        guard running, let startedAt, samples.count < 3600 else { return }
         sampling = true
         defer { sampling = false; if needsCheckpoint { needsCheckpoint = false; checkpoint() } }
         let currentID = controller.current?.id
-        let position = controller.position
+        let position = controller.playbackPosition
+        let health = controller.engine.outputHealth()
+        let stalledSeconds = stallTracker.observe(trackID: currentID.map { "\(controller.playGeneration):\($0)" },
+            position: position, at: ProcessInfo.processInfo.systemUptime,
+            playing: controller.isPlaying, buffering: controller.isBuffering)
+        if stalledSeconds == 0 { reportedStall = false }
         let progressed = progressTracker.observe(
             trackID: currentID, position: position,
             at: ProcessInfo.processInfo.systemUptime,
@@ -303,12 +316,24 @@ final class AutomixLiveTestMonitor {
             sourceLoaded: sourceLoaded,
             decoderReported: decoderReported,
             outputDeviceStarted: outputStarted,
+            bufferedFrames: health.bufferedFrames,
+            callbackUnderruns: health.callbackUnderruns,
+            outputRebuilds: health.outputRebuilds,
+            outputXruns: health.outputXruns,
+            stalledSeconds: stalledSeconds,
             audioSessionActive: audioSessionActive
         )
         samples.append(item)
         if !controller.queue.isEmpty || controller.current != nil {
             note(.queueIntegrity, queueValid && controller.current != nil ? .success : .failure,
                 queueValid && controller.current != nil ? .validState : .invalidState)
+        }
+        if stalledSeconds >= 10 && !reportedStall {
+            reportedStall = true
+            let nearEnd = controller.duration > 1 && abs(controller.duration - position) <= 0.1
+            let code: AppTestEvidenceCode = nearEnd ? .nearEndStalled : .playbackStalled
+            note(.playbackProgress, .failure, code)
+            if inBackground { note(.backgroundPlayback, .failure, code) }
         }
         if progressed {
             note(.playbackProgress, .success, .positionAdvanced)
@@ -485,7 +510,7 @@ struct AutomixLiveTestView: View {
                     Text(message).font(.footnote).foregroundStyle(.secondary)
                 }
                 LabeledContent("Messpunkte", value: "\(monitor.samples.count)")
-                LabeledContent("Maximale Laufzeit", value: "30 Minuten")
+                LabeledContent("Maximale Laufzeit", value: "60 Minuten")
                 if let saved = monitor.lastSavedAt {
                     LabeledContent("Letzter Speicherstand") { Text(saved, style: .time) }
                 }

@@ -53,6 +53,7 @@ enum AppTestEvidenceCode: String, Codable {
     case responseReceived, requestFailed, emptyResponse, queueUpdated, screenDisplayed
     case fileVerified, fileMissing, fileUnavailable, integrityFailed, modelBusy, platformUnsupported
     case backgroundEntered, routeChanged, previewRendered, previewFailed
+    case playbackStalled, nearEndStalled
 }
 enum AppTestCheckStatus: String, Codable {
     case notObserved, observed, passed, failed, unavailable

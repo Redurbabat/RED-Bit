@@ -152,6 +152,7 @@ extension PlaybackController {
             return
         }
         guard reason == .natural else { return }
+        guard engineLoadedId != nil || dolbyRenderer != nil else { return }
         // A natural end for a voice the transport already left (manual skip,
         // or a blend that already handed off) must not move or stop the new
         // selection. Empty source keeps backward compatibility with callers
@@ -206,6 +207,7 @@ extension PlaybackController {
 
     func finishNaturalQueueEnd() {
         state = .stopped
+        try? engine.pause()
         position = 0
         nowPlaying.updateRate(0.0, position: 0)
         nowPlaying.stop()

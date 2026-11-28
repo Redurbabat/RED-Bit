@@ -159,6 +159,7 @@ final class PlaybackController {
     var sourceDecisionNotes: [String: String] = [:]
     @ObservationIgnored var streamRecovery = PlaybackRecoveryPolicy()
     @ObservationIgnored var outputWatchdog = PlaybackOutputWatchdog()
+    @ObservationIgnored var playbackStallTracker = PlaybackStallTracker()
     @ObservationIgnored var pendingPlaybackLatency: PlaybackLatencySample?
     @ObservationIgnored var nextPreparationTask: Task<Void, Never>?
     @ObservationIgnored var urlPrefetchTask: Task<Void, Never>?
