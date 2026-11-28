@@ -26,3 +26,7 @@ Keine automatische Wiederholung bei 401/403/404. Kein Musikupload, kein
 neuer Scope im Identitätstoken, keine Server-Aktionsausführung. Die Anzeige
 ist eine Momentaufnahme, keine Autorisierung für künftige Aufträge.
 Echte private HTTPS-/Apple-Geräteabnahme steht aus.
+
+## Einmalige Statusantwort (opt-in)
+
+Serverbasis Redion `aff6e1eeb52b6ab026f639784493b66813bfdd3e`. Der Owner muss den Statusauftrag erzeugen und die beiden Server-Pilotflags aktivieren. In RED Bit ist die lokale Statusfreigabe erforderlich. Unter RED Home Server → Server-Statusauftrag bestätigt der Nutzer jeden einzelnen Vorgang. Erst dann holt der SDK einen Auftrag ab, akzeptiert ausschliesslich redbit_read_status und prüft ID, Ablauf und exakte Felder. Die App liest nur die bestehende Statusprojektion nach erneuter lokaler Freigabeprüfung. POST read-complete erhält nur ID und begrenzten Status. Keine Musiksteuerung, kein Hintergrund-Polling, kein Retry. Beim Verlassen des Bildschirms oder der aktiven Szene wird die Task abgebrochen; ein bereits gesendeter Request kann trotzdem angekommen sein. Keine Statusdaten in Logs. Der SDK prüft die Serverquittung. Echte Geräte-/HTTPS-Abnahme bleibt offen.

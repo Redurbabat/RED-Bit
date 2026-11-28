@@ -80,6 +80,51 @@ final class RedNativeIdentityTests: XCTestCase {
         }
     }
 
+    func testReadJobClaimStrictContract() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let expiry = now.addingTimeInterval(90)
+        let valid: [String: Any] = ["id": String(repeating: "a", count: 32),
+            "tool": "redbit_read_status", "expiresAt": Int64((now.timeIntervalSince1970 + 30) * 1000)]
+        func parse(_ job: Any) throws -> RedBitReadJob? {
+            try RedBitReadJob.parseClaim(JSONSerialization.data(withJSONObject: ["version": 1, "job": job]),
+                                          now: now, sessionExpiry: expiry)
+        }
+        XCTAssertNil(try parse(NSNull()))
+        XCTAssertEqual(try parse(valid)?.id, valid["id"] as? String)
+        for (key, value) in [("tool", "redbit_play" as Any), ("id", "../bad" as Any),
+            ("expiresAt", Int64(now.timeIntervalSince1970 * 1000) as Any),
+            ("expiresAt", Int64((now.timeIntervalSince1970 + 46) * 1000) as Any),
+            ("arguments", ["percent": 100] as Any)] {
+            var bad = valid; bad[key] = value
+            XCTAssertThrowsError(try parse(bad), key)
+        }
+        XCTAssertThrowsError(try RedBitReadJob.parseClaim(Data("{\"version\":1}".utf8), now: now, sessionExpiry: expiry))
+    }
+
+    func testReadJobCompletionRejectsPrivateDataAndInvalidTypes() throws {
+        let id = String(repeating: "b", count: 32)
+        let good: [String: Any] = ["version": 1, "state": "paused", "hasTrack": true,
+            "canNext": false, "canPrevious": false, "controlsLocked": false, "hasPlaybackError": false,
+            "positionSeconds": 2, "durationSeconds": 30]
+        func encode(_ object: [String: Any]) throws -> Data {
+            let data = try JSONSerialization.data(withJSONObject: object)
+            return try RedBitReadJob.completionBody(id: id, status: String(decoding: data, as: UTF8.self))
+        }
+        let body = try XCTUnwrap(JSONSerialization.jsonObject(with: encode(good)) as? [String: Any])
+        XCTAssertEqual(Set(body.keys), Set(["id", "status"]))
+        XCTAssertEqual(body["id"] as? String, id)
+        for (key, value) in [("title", "private" as Any), ("token", "private" as Any),
+            ("state", "private" as Any), ("hasTrack", 1 as Any), ("durationSeconds", -1 as Any),
+            ("positionSeconds", NSNull() as Any), ("positionSeconds", true as Any)] {
+            var bad = good; bad[key] = value
+            XCTAssertThrowsError(try encode(bad), key)
+        }
+        XCTAssertNoThrow(try RedBitReadJob.validateReceipt(Data("{\"ok\":true}".utf8)))
+        for raw in ["{\"ok\":false}", "{\"ok\":1}", "{\"ok\":true,\"token\":\"private\"}"] {
+            XCTAssertThrowsError(try RedBitReadJob.validateReceipt(Data(raw.utf8)))
+        }
+    }
+
     func testScopes() throws {
         let a = try RedNativeClient.credentialScope(origin: "https://home.example.test", app: "red-bit")
         XCTAssertEqual(a.count, 64)

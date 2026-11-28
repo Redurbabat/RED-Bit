@@ -5,6 +5,14 @@ import CoreGraphics
 /// Private RED identity is deliberately separate from the music provider account.
 /// No automatic network calls, uploads or data sharing.
 struct RedHomeIdentityView: View {
+    // Injiziert aus der App, damit die SDK-Ansicht eigenständig prüfbar bleibt.
+    var readStatus: (@MainActor @Sendable () throws -> String)? = nil
+    var canReadStatus: (@MainActor @Sendable () -> Bool)? = nil
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var visible = false
+    @State private var confirmReadJob = false
+    @State private var readTask: Task<Void, Never>?
+    @State private var readJobStatus: LocalizedStringKey = "Noch nicht geprüft."
     @AppStorage("red.home.identity.origin.v1") private var savedOrigin = ""
     @State private var origin = ""
     @State private var client: RedNativeClient?
@@ -109,11 +117,31 @@ struct RedHomeIdentityView: View {
                 Text("Nur die separate Freigabe wird abgefragt. Keine Musiktitel oder Wiedergabedaten werden übertragen. Die lokale Automatisierungsfreigabe bleibt unabhängig.")
                     .font(.footnote).foregroundStyle(.secondary)
             }
+            Section("Server-Statusauftrag") {
+                Button("Einmaligen Statusauftrag beantworten") { confirmReadJob = true }
+                    .disabled(busy || savedOrigin.isEmpty || proof != nil || readStatus == nil || canReadStatus?() != true || scenePhase != .active)
+                Text(readJobStatus).font(.footnote).foregroundStyle(.secondary)
+                Text("Nur mit lokaler Statusfreigabe. Übermittelt bei einem offenen Auftrag einmalig Wiedergabezustand, Position und Dauer sowie begrenzte Statusmerkmale an deinen privaten Server. Keine Titel oder Kontodaten. Keine Musiksteuerung.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
         .navigationTitle("RED Home Server")
-        .onAppear { if origin.isEmpty { origin = savedOrigin } }
-        .onDisappear { clearProof(); permission = nil; permissionStatus = "Noch nicht geprüft." }
+        .onAppear { visible = true; if origin.isEmpty { origin = savedOrigin } }
+        .onDisappear {
+            visible = false
+            readTask?.cancel()
+            clearProof(); permission = nil; permissionStatus = "Noch nicht geprüft."
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active { readTask?.cancel() }
+        }
+        .confirmationDialog("Status einmalig an den privaten Server senden?", isPresented: $confirmReadJob, titleVisibility: .visible) {
+            Button("Auftrag prüfen und beantworten") { respondToReadJob() }
+            Button("Abbrechen", role: .cancel) {}
+        } message: {
+            Text("Nur wenn ein gültiger, bestätigter Serverauftrag vorliegt. Keine automatische Wiederholung.")
+        }
         .confirmationDialog("RED ID trennen?", isPresented: $confirmDisconnect, titleVisibility: .visible) {
             Button("Trennen", role: .destructive) {
                 run { client in
@@ -147,6 +175,30 @@ struct RedHomeIdentityView: View {
             }
             Button("Abbrechen", role: .cancel) {}
         } message: { Text("Dies widerruft den Serverzugang nicht. Widerrufe RED BIT zuerst in RED ION, falls erreichbar.") }
+    }
+    @MainActor
+    private func respondToReadJob() {
+        guard !busy, visible, scenePhase == .active, canReadStatus?() == true, let readStatus else { return }
+        busy = true
+        permission = nil
+        permissionStatus = "Noch nicht geprüft."
+        readJobStatus = "Statusauftrag wird geprüft."
+        readTask = Task { @MainActor in
+            defer { busy = false; readTask = nil }
+            do {
+                let client = try getClient()
+                let sent = try await client.respondToRedBitReadJob {
+                    try Task.checkCancellation()
+                    guard visible, scenePhase == .active, canReadStatus?() == true else { throw CancellationError() }
+                    return try readStatus()
+                }
+                readJobStatus = sent ? "Statusantwort vom Server bestätigt." : "Kein offener Statusauftrag."
+            } catch {
+                // Auch bei Cancellation kann eine bereits gesendete Antwort
+                // angekommen sein; kein automatischer erneuter Versuch.
+                readJobStatus = "Statusantwort nicht bestätigt. Keine automatische Wiederholung."
+            }
+        }
     }
     private func configure() {
         do {

@@ -46,7 +46,10 @@ struct AccountIntegrationsView: View {
         Form {
             Section("RED ID") {
                 PushLink {
-                    RedHomeIdentityView()
+                    RedHomeIdentityView(
+                        readStatus: { try AppIntentActions.playbackStatus() },
+                        canReadStatus: { RedBitLocalAutomationConsent.allows(.status) }
+                    )
                 } label: {
                     Label("RED Home Server", systemImage: "person.crop.circle.badge.checkmark")
                 }

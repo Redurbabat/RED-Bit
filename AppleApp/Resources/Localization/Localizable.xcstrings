@@ -14672,6 +14672,106 @@
         }
       }
     },
+    "Server-Statusauftrag" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Server-Statusauftrag"
+          }
+        }
+      }
+    },
+    "Einmaligen Statusauftrag beantworten" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einmaligen Statusauftrag beantworten"
+          }
+        }
+      }
+    },
+    "Nur mit lokaler Statusfreigabe. Übermittelt bei einem offenen Auftrag einmalig Wiedergabezustand, Position und Dauer sowie begrenzte Statusmerkmale an deinen privaten Server. Keine Titel oder Kontodaten. Keine Musiksteuerung." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nur mit lokaler Statusfreigabe. Übermittelt bei einem offenen Auftrag einmalig Wiedergabezustand, Position und Dauer sowie begrenzte Statusmerkmale an deinen privaten Server. Keine Titel oder Kontodaten. Keine Musiksteuerung."
+          }
+        }
+      }
+    },
+    "Status einmalig an den privaten Server senden?" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Status einmalig an den privaten Server senden?"
+          }
+        }
+      }
+    },
+    "Auftrag prüfen und beantworten" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auftrag prüfen und beantworten"
+          }
+        }
+      }
+    },
+    "Nur wenn ein gültiger, bestätigter Serverauftrag vorliegt. Keine automatische Wiederholung." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nur wenn ein gültiger, bestätigter Serverauftrag vorliegt. Keine automatische Wiederholung."
+          }
+        }
+      }
+    },
+    "Statusauftrag wird geprüft." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Statusauftrag wird geprüft."
+          }
+        }
+      }
+    },
+    "Statusantwort vom Server bestätigt." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Statusantwort vom Server bestätigt."
+          }
+        }
+      }
+    },
+    "Kein offener Statusauftrag." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kein offener Statusauftrag."
+          }
+        }
+      }
+    },
+    "Statusantwort nicht bestätigt. Keine automatische Wiederholung." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Statusantwort nicht bestätigt. Keine automatische Wiederholung."
+          }
+        }
+      }
+    },
     "Playback position" : {
       "localizations" : {
         "de" : {
